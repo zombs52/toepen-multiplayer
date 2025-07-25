@@ -369,6 +369,7 @@
                     <button class="btn btn-primary" onclick="startLobbyGame()" id="startGameBtn" style="display: none;">Start Game</button>
                     <button class="btn btn-danger" onclick="leaveLobby()">Leave Lobby</button>
                 </div>
+                <p id="waitingMessage" style="display: none; margin-top: 15px; font-style: italic; color: #666;">Waiting for host to start the game...</p>
                 <p style="margin-top: 15px; font-size: 0.9rem;">Share this code with friends: <strong id="currentLobbyCode"></strong></p>
             </div>
         </div>
@@ -1335,6 +1336,20 @@
             updateLobbyDisplay();
         });
         
+        socket.on('roomJoined', (data) => {
+            currentLobby = {
+                code: data.roomCode,
+                players: data.players,
+                isHost: data.isHost
+            };
+            
+            document.getElementById('currentLobbyCode').textContent = data.roomCode;
+            document.getElementById('lobbyPlayers').style.display = 'block';
+            document.getElementById('startGameBtn').style.display = data.isHost ? 'inline-block' : 'none';
+            updateLobbyDisplay();
+            showMessage(`Joined lobby ${data.roomCode}!`);
+        });
+        
         socket.on('playerJoined', (data) => {
             if (currentLobby) {
                 currentLobby.players = data.players;
@@ -1493,7 +1508,7 @@
                 
                 playerDiv.appendChild(playerInfo);
                 
-                if (player.isBot && game.isHost) {
+                if (player.isBot && currentLobby.isHost) {
                     const removeBtn = document.createElement('button');
                     removeBtn.textContent = 'Remove';
                     removeBtn.className = 'btn btn-danger';
@@ -1506,14 +1521,17 @@
             });
             
             const addBotBtn = document.getElementById('addBotBtn');
-            addBotBtn.style.display = (currentLobby.players.length < currentLobby.maxPlayers && game.isHost) ? 'inline-block' : 'none';
+            addBotBtn.style.display = (currentLobby.players.length < currentLobby.maxPlayers && currentLobby.isHost) ? 'inline-block' : 'none';
             
             const startBtn = document.getElementById('startGameBtn');
             startBtn.style.display = (currentLobby.players.length >= 2 && currentLobby.isHost) ? 'inline-block' : 'none';
+            
+            const waitingMsg = document.getElementById('waitingMessage');
+            waitingMsg.style.display = (currentLobby.players.length >= 2 && !currentLobby.isHost) ? 'block' : 'none';
         }
 
         function removeBot(index) {
-            if (!currentLobby || !currentLobby.players[index].isBot || !game.isHost) return;
+            if (!currentLobby || !currentLobby.players[index].isBot || !currentLobby.isHost) return;
             
             currentLobby.players.splice(index, 1);
             updateLobbyDisplay();

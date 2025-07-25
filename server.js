@@ -95,6 +95,13 @@ io.on('connection', (socket) => {
     socket.join(roomCode);
     socket.roomCode = roomCode;
     
+    // Send lobby state to the joining player
+    socket.emit('roomJoined', {
+      roomCode: roomCode,
+      players: room.players,
+      isHost: false
+    });
+    
     // Notify all players in room
     io.to(roomCode).emit('playerJoined', {
       players: room.players,
