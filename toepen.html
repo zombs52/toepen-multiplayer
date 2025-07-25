@@ -1509,7 +1509,7 @@
             addBotBtn.style.display = (currentLobby.players.length < currentLobby.maxPlayers && game.isHost) ? 'inline-block' : 'none';
             
             const startBtn = document.getElementById('startGameBtn');
-            startBtn.style.display = (currentLobby.players.length >= 2 && game.isHost) ? 'inline-block' : 'none';
+            startBtn.style.display = (currentLobby.players.length >= 2 && currentLobby.isHost) ? 'inline-block' : 'none';
         }
 
         function removeBot(index) {

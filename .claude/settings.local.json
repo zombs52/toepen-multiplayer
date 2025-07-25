@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(start \"C:\\Users\\kdeuz\\Toepen-0.2\\toepen.html\")",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }

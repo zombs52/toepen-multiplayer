@@ -79,6 +79,12 @@ io.on('connection', (socket) => {
       return;
     }
     
+    // Check if player is already in the room
+    if (room.players.some(p => p.id === socket.id)) {
+      socket.emit('joinError', 'You are already in this room');
+      return;
+    }
+    
     // Add player to room
     room.players.push({
       id: socket.id,
