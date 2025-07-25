@@ -1362,18 +1362,11 @@
             isMultiplayer = true;
             myPlayerIndex = data.gameState.players.findIndex(p => p.id === socket.id);
             
-            // Initialize the game with multiplayer state
-            game.players = data.gameState.players.map(p => ({
-                name: p.name,
-                points: p.points,
-                hand: p.hand,
-                isBot: false
-            }));
-            
             document.getElementById('lobbyScreen').style.display = 'none';
             document.getElementById('gameScreen').style.display = 'block';
-            game.gamePhase = 'laundry';
-            game.startRound();
+            
+            // Sync with the server's initial game state (cards already dealt)
+            syncGameState(data.gameState);
         });
         
         socket.on('gameStateUpdate', (data) => {
@@ -1399,21 +1392,68 @@
         }
         
         function syncGameState(serverState) {
-            // Sync the server game state with local game
-            game.players = serverState.players.map(p => ({
-                name: p.name,
-                points: p.points,
-                hand: p.hand,
-                isBot: false
+            // Find this player's index in the server state
+            const myServerIndex = serverState.players.findIndex(p => p.id === socket.id);
+            if (myServerIndex === -1) return;
+            
+            // Reorder players so this player is always index 0 (bottom of screen)
+            const reorderedPlayers = [];
+            for (let i = 0; i < serverState.players.length; i++) {
+                const serverIndex = (myServerIndex + i) % serverState.players.length;
+                const serverPlayer = serverState.players[serverIndex];
+                reorderedPlayers.push({
+                    name: serverPlayer.name,
+                    points: serverPlayer.points,
+                    hand: serverPlayer.hand,
+                    isBot: false,
+                    cardsVisible: serverPlayer.cardsVisible || false
+                });
+            }
+            
+            game.players = reorderedPlayers;
+            
+            // Convert server current player index to local perspective
+            game.currentPlayer = (serverState.currentPlayer - myServerIndex + serverState.players.length) % serverState.players.length;
+            
+            // Convert other indices that reference players
+            game.lastToeper = serverState.lastToeper === -1 ? -1 : 
+                (serverState.lastToeper - myServerIndex + serverState.players.length) % serverState.players.length;
+            
+            // Handle playersInRound array
+            game.playersInRound = serverState.playersInRound.map(serverIndex => 
+                (serverIndex - myServerIndex + serverState.players.length) % serverState.players.length
+            );
+            
+            // Handle roundTrickWins array
+            game.roundTrickWins = [];
+            for (let i = 0; i < serverState.players.length; i++) {
+                const serverIndex = (myServerIndex + i) % serverState.players.length;
+                game.roundTrickWins[i] = serverState.roundTrickWins[serverIndex] || 0;
+            }
+            
+            // Convert current trick player indices
+            game.currentTrick = serverState.currentTrick.map(play => ({
+                card: play.card,
+                player: (play.player - myServerIndex + serverState.players.length) % serverState.players.length
             }));
             
-            game.currentPlayer = serverState.currentPlayer;
+            // Simple properties that don't need conversion
             game.round = serverState.round;
             game.stakes = serverState.stakes;
             game.gamePhase = serverState.gamePhase;
-            game.lastToeper = serverState.lastToeper;
             game.awaitingInspection = serverState.awaitingInspection;
-            game.pendingLaundry = serverState.pendingLaundry;
+            game.tricksPlayed = serverState.tricksPlayed;
+            game.leadSuit = serverState.leadSuit;
+            
+            // Handle pending laundry
+            if (serverState.pendingLaundry) {
+                game.pendingLaundry = {
+                    ...serverState.pendingLaundry,
+                    playerIndex: (serverState.pendingLaundry.playerIndex - myServerIndex + serverState.players.length) % serverState.players.length
+                };
+            } else {
+                game.pendingLaundry = null;
+            }
             
             game.updateDisplay();
         }

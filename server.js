@@ -28,6 +28,68 @@ function generateRoomCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
+// Game logic functions
+function createDeckAndDeal(gameState) {
+  const suits = ['♠', '♥', '♦', '♣'];
+  const ranks = [
+    {symbol: 'J', value: 1},
+    {symbol: 'Q', value: 2},
+    {symbol: 'K', value: 3},
+    {symbol: 'A', value: 4},
+    {symbol: '7', value: 5},
+    {symbol: '8', value: 6},
+    {symbol: '9', value: 7},
+    {symbol: '10', value: 8}
+  ];
+  
+  // Create deck
+  gameState.deck = [];
+  suits.forEach(suit => {
+    ranks.forEach(rank => {
+      gameState.deck.push({
+        suit: suit,
+        rank: rank.symbol,
+        value: rank.value,
+        color: (suit === '♥' || suit === '♦') ? 'red' : 'black'
+      });
+    });
+  });
+  
+  // Shuffle deck
+  for (let i = gameState.deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [gameState.deck[i], gameState.deck[j]] = [gameState.deck[j], gameState.deck[i]];
+  }
+  
+  // Deal 4 cards to each player
+  gameState.players.forEach(player => {
+    player.hand = [];
+    for (let i = 0; i < 4; i++) {
+      if (gameState.deck.length > 0) {
+        player.hand.push(gameState.deck.pop());
+      }
+    }
+  });
+}
+
+function isValidPlay(gameState, card) {
+  // If no lead suit set, any card is valid
+  if (!gameState.leadSuit || gameState.currentTrick.length === 0) {
+    return true;
+  }
+  
+  // Find current player
+  const currentPlayer = gameState.players[gameState.currentPlayer];
+  
+  // Must follow suit if possible
+  const hasSuit = currentPlayer.hand.some(c => c.suit === gameState.leadSuit);
+  if (hasSuit && card.suit !== gameState.leadSuit) {
+    return false;
+  }
+  
+  return true;
+}
+
 // Socket connection handling
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
@@ -135,21 +197,26 @@ io.on('connection', (socket) => {
         name: p.name,
         points: 0,
         hand: [],
-        index: index
+        index: index,
+        cardsVisible: false
       })),
       currentPlayer: 0,
       round: 1,
       stakes: 1,
-      gamePhase: 'starting',
+      gamePhase: 'laundry',
       deck: [],
       currentTrick: [],
       tricksPlayed: 0,
-      playersInRound: [],
-      roundTrickWins: [],
+      playersInRound: [...Array(room.players.length).keys()],
+      roundTrickWins: new Array(room.players.length).fill(0),
       lastToeper: -1,
       awaitingInspection: false,
-      pendingLaundry: null
+      pendingLaundry: null,
+      leadSuit: null
     };
+    
+    // Create deck and deal cards
+    createDeckAndDeal(room.gameState);
     
     // Notify all players that game is starting
     io.to(roomCode).emit('gameStarted', {
@@ -224,19 +291,33 @@ function processGameAction(room, playerIndex, action) {
   
   switch (action.type) {
     case 'playCard':
-      if (gameState.currentPlayer === playerIndex && gameState.gamePhase === 'playing') {
-        // Process card play
-        const card = gameState.players[playerIndex].hand[action.cardIndex];
-        gameState.players[playerIndex].hand.splice(action.cardIndex, 1);
-        gameState.currentTrick.push({ card: card, player: playerIndex });
+      if (gameState.currentPlayer === playerIndex && 
+          gameState.gamePhase === 'playing' && 
+          gameState.playersInRound.includes(playerIndex) &&
+          action.cardIndex >= 0 && 
+          action.cardIndex < gameState.players[playerIndex].hand.length) {
         
-        // Move to next player or evaluate trick
-        if (gameState.currentTrick.length === gameState.playersInRound.length) {
-          // Trick complete - evaluate winner
-          evaluateTrick(gameState);
-        } else {
-          // Next player's turn
-          gameState.currentPlayer = getNextPlayer(gameState);
+        const card = gameState.players[playerIndex].hand[action.cardIndex];
+        
+        // Validate the play (basic suit following)
+        if (isValidPlay(gameState, card)) {
+          // Remove card from player's hand
+          gameState.players[playerIndex].hand.splice(action.cardIndex, 1);
+          gameState.currentTrick.push({ card: card, player: playerIndex });
+          
+          // Set lead suit if this is the first card
+          if (gameState.currentTrick.length === 1) {
+            gameState.leadSuit = card.suit;
+          }
+          
+          // Move to next player or evaluate trick
+          if (gameState.currentTrick.length === gameState.playersInRound.length) {
+            // Trick complete - evaluate winner
+            evaluateTrick(gameState);
+          } else {
+            // Next player's turn
+            gameState.currentPlayer = getNextPlayer(gameState);
+          }
         }
       }
       break;
