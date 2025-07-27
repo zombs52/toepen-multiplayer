@@ -131,10 +131,22 @@ function processLaundryInspection(gameState, inspectorIndex, room) {
   if (isValidLaundry) {
     // Valid laundry - inspector gets penalty
     gameState.players[inspectorIndex].points += 1;
+    gameState.laundryResult = {
+      type: 'validClaim',
+      inspector: inspectorIndex,
+      claimer: playerIndex,
+      claimType: type
+    };
   } else {
     // Invalid laundry - bluff caught, claimer gets penalty and visible cards
     player.points += 1;
     player.cardsVisible = true;
+    gameState.laundryResult = {
+      type: 'invalidClaim', 
+      inspector: inspectorIndex,
+      claimer: playerIndex,
+      claimType: type
+    };
   }
 
   gameState.pendingLaundry = null;
@@ -346,6 +358,10 @@ io.on('connection', (socket) => {
     if (socket.roomCode) {
       const room = gameRooms.get(socket.roomCode);
       if (room) {
+        // Find the disconnected player's name BEFORE removing them
+        const disconnectedPlayer = room.players.find(p => p.id === socket.id);
+        const playerName = disconnectedPlayer ? disconnectedPlayer.name : 'Unknown Player';
+        
         // Remove player from room
         room.players = room.players.filter(p => p.id !== socket.id);
         
@@ -363,7 +379,8 @@ io.on('connection', (socket) => {
           // Notify remaining players
           io.to(socket.roomCode).emit('playerLeft', {
             players: room.players,
-            disconnectedId: socket.id
+            disconnectedId: socket.id,
+            playerName: playerName
           });
         }
       }

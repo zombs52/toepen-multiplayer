@@ -12,7 +12,7 @@ This is a web-based implementation of Toepen, a classic Dutch card game. The pro
 - **Live Site**: https://toepen-multiplayer-production.up.railway.app/
 - **Hosting**: Railway (connected to GitHub for auto-deployment)
 - **Repository**: Connected to GitHub - changes pushed to main branch auto-deploy
-- **Current Version**: V-0.9 (increment version number for major updates)
+- **Current Version**: V-1.0 (increment version number for major updates)
 
 ## Architecture
 
