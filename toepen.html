@@ -420,7 +420,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-1.1 🃏</h1>
+            <h1>🃏 TOEPEN V-1.2 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -550,7 +550,7 @@
 
     <!-- Game Menu -->
     <div class="game-menu" id="gameMenu" style="display: none;">
-        <button class="menu-button" onclick="returnToLobby()">🔄 Return to Lobby</button>
+        <button class="menu-button" onclick="returnToMainMenu()">🏠 Main Menu</button>
         <button class="menu-button" onclick="toggleActivityLog()">📋 Activity Log</button>
     </div>
 
@@ -1508,9 +1508,12 @@
         socket.on('playerLeft', (data) => {
             if (isMultiplayer) {
                 game.updateGameStatus(`📤 ${data.playerName} left the game`);
+                addActivityMessage(`📤 ${data.playerName} left the game`, 'player-event');
+                
                 // Update lobby if still in lobby
                 if (currentLobby) {
-                    updateLobbyDisplay(data.players);
+                    currentLobby.players = data.players;
+                    updateLobbyDisplay();
                 }
             }
         });
@@ -2039,33 +2042,46 @@
             }
         }
 
-        function returnToLobby() {
-            if (confirm('Are you sure you want to return to lobby? This will end the current game.')) {
-                // Reset game state
+        function returnToMainMenu() {
+            if (confirm('Return to main menu? This will end the current game.')) {
+                // Disconnect from multiplayer if connected
+                if (isMultiplayer && socket) {
+                    socket.disconnect();
+                }
+                
+                // Reset all game state
                 isMultiplayer = false;
                 myPlayerIndex = -1;
+                currentLobby = null;
                 
-                // Hide game screens and show lobby
+                // Hide all screens and show setup
                 document.getElementById('gameScreen').style.display = 'none';
-                document.getElementById('lobbyScreen').style.display = 'block';
+                document.getElementById('lobbyScreen').style.display = 'none';
+                document.getElementById('setupScreen').style.display = 'block';
                 
                 // Reset game
                 game = new ToepenGame();
                 
-                addActivityMessage('🔄 Returned to lobby', 'player-event');
+                // Clear activity log
+                document.getElementById('activityMessages').innerHTML = '';
+                
+                addActivityMessage('🏠 Returned to main menu', 'player-event');
             }
         }
 
         // Enhanced status update function that also logs to activity
         const originalUpdateGameStatus = game ? game.updateGameStatus : null;
         
-        // Override updateGameStatus to also log to activity log
+        // Override updateGameStatus to also log to activity log (prevent duplicates)
         function enhanceGameStatusUpdate() {
             if (game && game.updateGameStatus) {
                 const original = game.updateGameStatus.bind(game);
                 game.updateGameStatus = function(message) {
                     original(message);
-                    if (isMultiplayer) {
+                    // Only log to activity if not already handled by specific event handlers
+                    if (isMultiplayer && !message.includes('left the game') && 
+                        !message.includes('joined the lobby') && 
+                        !message.includes('Game started')) {
                         addActivityMessage(message, 'game-event');
                     }
                 };
