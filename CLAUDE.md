@@ -8,6 +8,12 @@ This is a web-based implementation of Toepen, a classic Dutch card game. The pro
 - **Frontend**: Monolithic single-page application in `toepen.html` (~1,327 lines) using vanilla HTML, CSS, and JavaScript
 - **Backend**: Node.js/Express server (`server.js`) with Socket.io for real-time multiplayer functionality
 
+### Deployment Information
+- **Live Site**: https://toepen-multiplayer-production.up.railway.app/
+- **Hosting**: Railway (connected to GitHub for auto-deployment)
+- **Repository**: Connected to GitHub - changes pushed to main branch auto-deploy
+- **Current Version**: V-0.6 (increment version number for major updates)
+
 ## Architecture
 
 ### Single-File Design
@@ -172,3 +178,21 @@ Special "Laundry" mechanics for specific hand combinations:
 - CSS Grid for responsive layout
 - Mobile-first responsive design
 - Component-based styling approach
+
+## Development Workflow
+
+### Version Management
+- Always increment version number (V-0.X) in `toepen.html` for major updates
+- Commit with descriptive messages including version bump
+- Push to main branch triggers automatic Railway deployment
+
+### Testing Workflow
+1. Make changes locally
+2. Test locally with `npm start` and `http://localhost:3000`
+3. Commit and push to deploy to Railway
+4. Test live site at https://toepen-multiplayer-production.up.railway.app/
+
+### Current Focus Areas
+- **Multiplayer Parity**: Ensuring multiplayer works as smoothly as singleplayer
+- **Synchronization**: Real-time game state sync between clients
+- **User Experience**: Seamless gameplay flow and feedback
