@@ -484,21 +484,60 @@ function processGameAction(room, playerIndex, action) {
       return true;
       
     case 'submitLaundry':
-      if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
+      if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection && gameState.deck.length >= 4) {
         gameState.pendingLaundry = {
           playerIndex: playerIndex,
           type: action.laundryType,
           cards: [...gameState.players[playerIndex].hand]
         };
         gameState.awaitingInspection = true;
+        
+        // Set timeout for auto-processing if no inspection
+        setTimeout(() => {
+          if (gameState.awaitingInspection && gameState.pendingLaundry && 
+              gameState.pendingLaundry.playerIndex === playerIndex) {
+            // No one inspected - player gets new cards regardless
+            const player = gameState.players[playerIndex];
+            player.hand = [];
+            for (let i = 0; i < 4; i++) {
+              if (gameState.deck.length > 0) {
+                player.hand.push(gameState.deck.pop());
+              }
+            }
+            
+            gameState.pendingLaundry = null;
+            gameState.awaitingInspection = false;
+            
+            // Continue laundry phase or end it
+            if (gameState.deck.length >= 4) {
+              gameState.gamePhase = 'laundry';
+            } else {
+              gameState.gamePhase = 'playing';
+            }
+            
+            // Broadcast the result
+            io.to(room.code).emit('gameStateUpdate', {
+              gameState: gameState,
+              lastAction: { type: 'laundryTimeout', playerIndex: playerIndex }
+            });
+          }
+        }, 10000);
       }
       return true;
       
     case 'inspectLaundry':
-      if (gameState.awaitingInspection && gameState.pendingLaundry) {
+      if (gameState.awaitingInspection && gameState.pendingLaundry && 
+          gameState.pendingLaundry.playerIndex !== playerIndex) {
+        const claimerIndex = gameState.pendingLaundry.playerIndex;
         processLaundryInspection(gameState, playerIndex, room);
+        
+        // Broadcast the inspection result
+        io.to(room.code).emit('gameStateUpdate', {
+          gameState: gameState,
+          lastAction: { type: 'laundryInspected', playerIndex: playerIndex, claimerIndex: claimerIndex }
+        });
       }
-      return true;
+      return false; // Already broadcasted or invalid
       
     default:
       return true;

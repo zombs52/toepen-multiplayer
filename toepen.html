@@ -339,7 +339,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-0.7 🃏</h1>
+            <h1>🃏 TOEPEN V-0.8 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -1192,24 +1192,35 @@
                         // Show eliminated players
                         playerEl.classList.toggle('eliminated', player.points >= 10);
                         
-                        // Laundry inspection - make players clickable if awaiting inspection
-                        if (this.awaitingInspection && this.pendingLaundry && 
-                            this.pendingLaundry.playerIndex === index) {
-                            playerEl.style.cursor = 'pointer';
-                            playerEl.style.border = '3px solid #ffeb3b';
-                            playerEl.title = 'Click to inspect laundry';
-                            playerEl.onclick = () => {
-                                if (isMultiplayer) {
-                                    socket.emit('gameAction', { type: 'inspectLaundry' });
-                                } else {
-                                    this.inspectLaundry(0);
+                        // Laundry inspection - show claimer with special border, make other players clickable
+                        if (this.awaitingInspection && this.pendingLaundry) {
+                            if (this.pendingLaundry.playerIndex === index) {
+                                // This is the claimer - show special border but not clickable
+                                playerEl.style.cursor = 'default';
+                                playerEl.style.border = '3px solid #ffeb3b';
+                                playerEl.title = `Claims ${this.pendingLaundry.type === 'witte' ? 'Witte was' : 'Vuile was'}`;
+                                playerEl.onclick = null;
+                            } else if (index === 0 || !isMultiplayer) {
+                                // This is the human player (index 0) - make clickable to inspect
+                                playerEl.style.cursor = 'pointer';
+                                playerEl.style.border = '3px solid #4caf50';
+                                playerEl.title = 'Click to inspect laundry';
+                                playerEl.onclick = () => {
+                                    if (isMultiplayer) {
+                                        socket.emit('gameAction', { type: 'inspectLaundry' });
+                                    } else {
+                                        this.inspectLaundry(0);
+                                    }
+                                };
+                            } else {
+                                // Other AI players can inspect too (simulate) - reduced chance
+                                if (Math.random() < 0.03) { // 3% chance AI inspects (rare but possible)
+                                    setTimeout(() => this.inspectLaundry(index), Math.random() * 5000 + 2000);
                                 }
-                            };
-                        } else if (this.awaitingInspection && index !== 0 && 
-                                   this.pendingLaundry && this.pendingLaundry.playerIndex !== index) {
-                            // Other AI players can inspect too (simulate) - reduced chance
-                            if (Math.random() < 0.03) { // 3% chance AI inspects (rare but possible)
-                                setTimeout(() => this.inspectLaundry(index), Math.random() * 5000 + 2000);
+                                playerEl.style.cursor = 'default';
+                                playerEl.style.border = 'none';
+                                playerEl.title = '';
+                                playerEl.onclick = null;
                             }
                         } else {
                             playerEl.style.cursor = 'default';
@@ -1269,7 +1280,7 @@
                               this.playersInRound.includes(0) && this.stakes < 16 && this.lastToeper !== 0;
                 const canFold = this.gamePhase === 'playing' && this.playersInRound.includes(0);
                 
-                // Laundry buttons visibility - always show both during laundry phase (allow bluffing)
+                // Laundry buttons visibility - only show during laundry phase when not awaiting inspection
                 const inLaundryPhase = this.gamePhase === 'laundry' && !this.awaitingInspection;
                 const canSubmitVuileWas = inLaundryPhase;
                 const canSubmitWitteWas = inLaundryPhase;
@@ -1416,6 +1427,15 @@
                     const laundryPlayer = gameState.players[action.playerIndex]?.name || 'Unknown';
                     const laundryType = action.laundryType === 'witte' ? 'Witte was' : 'Vuile was';
                     game.updateGameStatus(`${laundryPlayer} claims ${laundryType}! Click to inspect or wait.`);
+                    break;
+                case 'laundryTimeout':
+                    const timeoutPlayer = gameState.players[action.playerIndex]?.name || 'Unknown';
+                    game.updateGameStatus(`No one inspected ${timeoutPlayer}'s claim. ${timeoutPlayer} gets new cards.`);
+                    break;
+                case 'laundryInspected':
+                    const inspector = gameState.players[action.playerIndex]?.name || 'Unknown';
+                    const claimer = gameState.players[action.claimerIndex]?.name || 'Unknown';
+                    game.updateGameStatus(`${inspector} inspects ${claimer}'s laundry claim...`);
                     break;
                 case 'laundryPhaseEnd':
                     game.updateGameStatus(`Laundry phase ended. Game begins!`);
