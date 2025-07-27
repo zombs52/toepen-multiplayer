@@ -48,10 +48,27 @@
 
         .players-section {
             display: grid;
-            grid-template-columns: 1fr 2fr 1fr;
             gap: 20px;
             margin-bottom: 30px;
             min-height: 200px;
+        }
+        
+        /* Dynamic layouts based on player count */
+        .players-section.players-2 {
+            grid-template-columns: 1fr 1fr;
+            grid-template-areas: "opponent1 center";
+        }
+        
+        .players-section.players-3 {
+            grid-template-columns: 1fr 2fr 1fr;
+            grid-template-areas: "opponent1 center opponent2";
+        }
+        
+        .players-section.players-4 {
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-areas: 
+                "opponent1 opponent2 opponent3"
+                "center center center";
         }
         
         .activity-log {
@@ -420,7 +437,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-1.4 🃏</h1>
+            <h1>🃏 TOEPEN V-1.5 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -510,26 +527,8 @@
                 <div>Tricks: <span id="tricksPlayed">0</span>/4</div>
             </div>
 
-            <div class="players-section">
-                <div id="player1" class="player">
-                    <div class="player-name">Player 2</div>
-                    <div class="player-points">Points: 0</div>
-                    <div class="player-tricks">This round: 0 tricks</div>
-                    <div class="player-cards"></div>
-                </div>
-
-                <div class="playing-area">
-                    <div class="trick-area" id="trickArea"></div>
-                    <div class="stakes-indicator">Stakes: <span id="stakesDisplay">1</span> points</div>
-                    <div class="game-status" id="gameStatus">Round starting...</div>
-                </div>
-
-                <div id="player2" class="player">
-                    <div class="player-name">Player 3</div>
-                    <div class="player-points">Points: 0</div>
-                    <div class="player-tricks">This round: 0 tricks</div>
-                    <div class="player-cards"></div>
-                </div>
+            <div class="players-section" id="playersSection">
+                <!-- Dynamic player layout will be generated here -->
             </div>
 
             <div id="player0" class="player current-player">
@@ -1482,6 +1481,9 @@
             document.getElementById('lobbyScreen').style.display = 'none';
             document.getElementById('gameScreen').style.display = 'block';
             
+            // Create dynamic layout based on player count
+            createPlayersLayout(data.gameState.players.length);
+            
             // Initialize activity log for multiplayer
             enhanceGameStatusUpdate();
             addActivityMessage(`🎮 Game started with ${data.gameState.players.length} players!`, 'game-event');
@@ -1705,6 +1707,11 @@
             document.getElementById('currentLobbyCode').textContent = '';
             document.getElementById('playersList').innerHTML = '';
             
+            // Ensure socket is connected
+            if (!socket.connected) {
+                socket.connect();
+            }
+            
             // Sync name from setup screen to lobby screen
             const setupName = document.getElementById('playerName').value || 'Player';
             document.getElementById('lobbyPlayerName').value = setupName;
@@ -1855,6 +1862,9 @@
             for (let i = 1; i < numPlayers; i++) {
                 game.players.push({name: `Player ${i + 1}`, points: 0, hand: []});
             }
+            
+            // Create dynamic layout for singleplayer
+            createPlayersLayout(numPlayers);
             
             document.getElementById('setupScreen').style.display = 'none';
             document.getElementById('gameScreen').style.display = 'block';
@@ -2085,6 +2095,78 @@
                 document.getElementById('activityMessages').innerHTML = '';
                 
                 addActivityMessage('🏠 Returned to main menu', 'player-event');
+            }
+        }
+
+        // Dynamic UI Layout Functions
+        function createPlayersLayout(playerCount) {
+            const playersSection = document.getElementById('playersSection');
+            playersSection.innerHTML = '';
+            playersSection.className = `players-section players-${playerCount}`;
+            
+            if (playerCount === 2) {
+                // 2 players: opponent on left, center area on right
+                playersSection.innerHTML = `
+                    <div id="player1" class="player" style="grid-area: opponent1;">
+                        <div class="player-name">Player 2</div>
+                        <div class="player-points">Points: 0</div>
+                        <div class="player-tricks">This round: 0 tricks</div>
+                        <div class="player-cards"></div>
+                    </div>
+                    <div class="playing-area" style="grid-area: center;">
+                        <div class="trick-area" id="trickArea"></div>
+                        <div class="stakes-indicator">Stakes: <span id="stakesDisplay">1</span> points</div>
+                        <div class="game-status" id="gameStatus">Round starting...</div>
+                    </div>
+                `;
+            } else if (playerCount === 3) {
+                // 3 players: classic layout
+                playersSection.innerHTML = `
+                    <div id="player1" class="player" style="grid-area: opponent1;">
+                        <div class="player-name">Player 2</div>
+                        <div class="player-points">Points: 0</div>
+                        <div class="player-tricks">This round: 0 tricks</div>
+                        <div class="player-cards"></div>
+                    </div>
+                    <div class="playing-area" style="grid-area: center;">
+                        <div class="trick-area" id="trickArea"></div>
+                        <div class="stakes-indicator">Stakes: <span id="stakesDisplay">1</span> points</div>
+                        <div class="game-status" id="gameStatus">Round starting...</div>
+                    </div>
+                    <div id="player2" class="player" style="grid-area: opponent2;">
+                        <div class="player-name">Player 3</div>
+                        <div class="player-points">Points: 0</div>
+                        <div class="player-tricks">This round: 0 tricks</div>
+                        <div class="player-cards"></div>
+                    </div>
+                `;
+            } else if (playerCount === 4) {
+                // 4 players: 3 opponents on top, center below
+                playersSection.innerHTML = `
+                    <div id="player1" class="player" style="grid-area: opponent1;">
+                        <div class="player-name">Player 2</div>
+                        <div class="player-points">Points: 0</div>
+                        <div class="player-tricks">This round: 0 tricks</div>
+                        <div class="player-cards"></div>
+                    </div>
+                    <div id="player2" class="player" style="grid-area: opponent2;">
+                        <div class="player-name">Player 3</div>
+                        <div class="player-points">Points: 0</div>
+                        <div class="player-tricks">This round: 0 tricks</div>
+                        <div class="player-cards"></div>
+                    </div>
+                    <div id="player3" class="player" style="grid-area: opponent3;">
+                        <div class="player-name">Player 4</div>
+                        <div class="player-points">Points: 0</div>
+                        <div class="player-tricks">This round: 0 tricks</div>
+                        <div class="player-cards"></div>
+                    </div>
+                    <div class="playing-area" style="grid-area: center;">
+                        <div class="trick-area" id="trickArea"></div>
+                        <div class="stakes-indicator">Stakes: <span id="stakesDisplay">1</span> points</div>
+                        <div class="game-status" id="gameStatus">Round starting...</div>
+                    </div>
+                `;
             }
         }
 
