@@ -339,7 +339,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-0.6 🃏</h1>
+            <h1>🃏 TOEPEN V-0.7 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -460,11 +460,9 @@
 
             <div class="controls">
                 <button class="btn btn-warning" id="toepBtn" onclick="toep()">Toep! (Raise Stakes)</button>
-                <button class="btn btn-danger" id="foldBtn" onclick="fold()">Fold Round</button>
-                <button class="btn btn-primary" id="nextRoundBtn" onclick="nextRound()" style="display: none;">Next Round</button>
+                <button class="btn btn-danger" id="foldBtn" onclick="fold()">Fold</button>
                 <button class="btn btn-secondary" id="vuileWasBtn" onclick="submitVuileWas()" style="display: none;">Vuile Was</button>
                 <button class="btn btn-secondary" id="witteWasBtn" onclick="submitWitteWas()" style="display: none;">Witte Was</button>
-                <button class="btn btn-info" id="skipLaundryBtn" onclick="skipLaundry()" style="display: none;">Skip Laundry</button>
             </div>
         </div>
     </div>
@@ -1264,10 +1262,8 @@
                 // Update controls
                 const toepBtn = document.getElementById('toepBtn');
                 const foldBtn = document.getElementById('foldBtn');
-                const nextRoundBtn = document.getElementById('nextRoundBtn');
                 const vuileWasBtn = document.getElementById('vuileWasBtn');
                 const witteWasBtn = document.getElementById('witteWasBtn');
-                const skipLaundryBtn = document.getElementById('skipLaundryBtn');
                 
                 const canToep = this.gamePhase === 'playing' && this.currentPlayer === 0 && 
                               this.playersInRound.includes(0) && this.stakes < 16 && this.lastToeper !== 0;
@@ -1277,14 +1273,11 @@
                 const inLaundryPhase = this.gamePhase === 'laundry' && !this.awaitingInspection;
                 const canSubmitVuileWas = inLaundryPhase;
                 const canSubmitWitteWas = inLaundryPhase;
-                const canSkipLaundry = inLaundryPhase;
                 
                 toepBtn.style.display = canToep ? 'inline-block' : 'none';
                 foldBtn.style.display = canFold ? 'inline-block' : 'none';
-                nextRoundBtn.style.display = (this.gamePhase === 'roundEnd') ? 'inline-block' : 'none';
                 vuileWasBtn.style.display = canSubmitVuileWas ? 'inline-block' : 'none';
                 witteWasBtn.style.display = canSubmitWitteWas ? 'inline-block' : 'none';
-                skipLaundryBtn.style.display = canSkipLaundry ? 'inline-block' : 'none';
                 
                 toepBtn.disabled = !canToep;
                 foldBtn.disabled = !canFold;
@@ -1702,10 +1695,6 @@
             }
         }
 
-        function nextRound() {
-            game.nextRound();
-        }
-
         function acceptToep() {
             if (isMultiplayer) {
                 socket.emit('gameAction', { type: 'acceptToep' });
@@ -1852,10 +1841,6 @@
             }
         }
 
-        function skipLaundry() {
-            if (game.gamePhase !== 'laundry' || game.awaitingInspection) return;
-            game.endLaundryPhase();
-        }
     </script>
 </body>
 </html>
