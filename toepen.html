@@ -420,7 +420,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-1.2 🃏</h1>
+            <h1>🃏 TOEPEN V-1.3 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -1506,15 +1506,17 @@
         });
         
         socket.on('playerLeft', (data) => {
+            // Update lobby display if we're in lobby mode
+            if (currentLobby && !isMultiplayer) {
+                currentLobby.players = data.players;
+                updateLobbyDisplay();
+                showMessage(`${data.playerName} left the lobby`);
+            }
+            
+            // Update game display if we're in a multiplayer game
             if (isMultiplayer) {
                 game.updateGameStatus(`📤 ${data.playerName} left the game`);
                 addActivityMessage(`📤 ${data.playerName} left the game`, 'player-event');
-                
-                // Update lobby if still in lobby
-                if (currentLobby) {
-                    currentLobby.players = data.players;
-                    updateLobbyDisplay();
-                }
             }
         });
         
@@ -1753,6 +1755,12 @@
         }
 
         function leaveLobby() {
+            // Disconnect from socket to properly remove from server lobby
+            if (socket && socket.connected) {
+                socket.disconnect();
+                socket.connect(); // Reconnect for future use
+            }
+            
             currentLobby = null;
             game.lobbyCode = '';
             game.isHost = false;
