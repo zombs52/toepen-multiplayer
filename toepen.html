@@ -420,7 +420,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-1.3 🃏</h1>
+            <h1>🃏 TOEPEN V-1.4 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -1509,6 +1509,10 @@
             // Update lobby display if we're in lobby mode
             if (currentLobby && !isMultiplayer) {
                 currentLobby.players = data.players;
+                // Update host status if there's a new host
+                if (data.newHost === socket.id) {
+                    currentLobby.isHost = true;
+                }
                 updateLobbyDisplay();
                 showMessage(`${data.playerName} left the lobby`);
             }
@@ -1694,6 +1698,13 @@
         }
 
         function showLobby() {
+            // Clear any old lobby state first
+            currentLobby = null;
+            document.getElementById('lobbyPlayers').style.display = 'none';
+            document.getElementById('lobbyCode').value = '';
+            document.getElementById('currentLobbyCode').textContent = '';
+            document.getElementById('playersList').innerHTML = '';
+            
             // Sync name from setup screen to lobby screen
             const setupName = document.getElementById('playerName').value || 'Player';
             document.getElementById('lobbyPlayerName').value = setupName;
@@ -2080,17 +2091,27 @@
         // Enhanced status update function that also logs to activity
         const originalUpdateGameStatus = game ? game.updateGameStatus : null;
         
+        // Track already logged messages to prevent duplicates
+        let recentActivityMessages = new Set();
+        
         // Override updateGameStatus to also log to activity log (prevent duplicates)
         function enhanceGameStatusUpdate() {
             if (game && game.updateGameStatus) {
                 const original = game.updateGameStatus.bind(game);
                 game.updateGameStatus = function(message) {
                     original(message);
-                    // Only log to activity if not already handled by specific event handlers
-                    if (isMultiplayer && !message.includes('left the game') && 
-                        !message.includes('joined the lobby') && 
-                        !message.includes('Game started')) {
-                        addActivityMessage(message, 'game-event');
+                    
+                    // Only log to activity if multiplayer and not a duplicate
+                    if (isMultiplayer && !recentActivityMessages.has(message)) {
+                        // Skip messages that are handled by specific socket events
+                        if (!message.includes('left the game') && 
+                            !message.includes('joined the lobby') && 
+                            !message.includes('Game started')) {
+                            addActivityMessage(message, 'game-event');
+                            recentActivityMessages.add(message);
+                            // Clear old messages after 5 seconds
+                            setTimeout(() => recentActivityMessages.delete(message), 5000);
+                        }
                     }
                 };
             }

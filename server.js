@@ -381,7 +381,8 @@ io.on('connection', (socket) => {
           io.to(socket.roomCode).emit('playerLeft', {
             players: room.players,
             disconnectedId: socket.id,
-            playerName: playerName
+            playerName: playerName,
+            newHost: room.host // Include new host info
           });
         }
       }
