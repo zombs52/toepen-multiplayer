@@ -110,6 +110,30 @@
             z-index: 1001;
             font-size: 1.2rem;
         }
+        
+        .game-menu {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
+        
+        .menu-button {
+            background: rgba(0,0,0,0.7);
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            display: block;
+            min-width: 120px;
+        }
+        
+        .menu-button:hover {
+            background: rgba(0,0,0,0.9);
+        }
 
         .player {
             background: rgba(255,255,255,0.15);
@@ -396,7 +420,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-1.0 🃏</h1>
+            <h1>🃏 TOEPEN V-1.1 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -520,9 +544,14 @@
                 <button class="btn btn-danger" id="foldBtn" onclick="fold()">Fold</button>
                 <button class="btn btn-secondary" id="vuileWasBtn" onclick="submitVuileWas()" style="display: none;">Vuile Was</button>
                 <button class="btn btn-secondary" id="witteWasBtn" onclick="submitWitteWas()" style="display: none;">Witte Was</button>
-                <button class="btn btn-info" id="lobbyBtn" onclick="returnToLobby()" style="display: none;">Return to Lobby</button>
             </div>
         </div>
+    </div>
+
+    <!-- Game Menu -->
+    <div class="game-menu" id="gameMenu" style="display: none;">
+        <button class="menu-button" onclick="returnToLobby()">🔄 Return to Lobby</button>
+        <button class="menu-button" onclick="toggleActivityLog()">📋 Activity Log</button>
     </div>
 
     <!-- Activity Log Toggle Button -->
@@ -1369,9 +1398,9 @@
                 vuileWasBtn.style.display = canSubmitVuileWas ? 'inline-block' : 'none';
                 witteWasBtn.style.display = canSubmitWitteWas ? 'inline-block' : 'none';
                 
-                // Show return to lobby button in multiplayer
-                const lobbyBtn = document.getElementById('lobbyBtn');
-                lobbyBtn.style.display = isMultiplayer ? 'inline-block' : 'none';
+                // Show game menu in multiplayer
+                const gameMenu = document.getElementById('gameMenu');
+                gameMenu.style.display = isMultiplayer ? 'block' : 'none';
                 
                 toepBtn.disabled = !canToep;
                 foldBtn.disabled = !canFold;

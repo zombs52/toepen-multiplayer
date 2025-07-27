@@ -293,7 +293,8 @@ io.on('connection', (socket) => {
       lastToeper: -1,
       awaitingInspection: false,
       pendingLaundry: null,
-      leadSuit: null
+      leadSuit: null,
+      lastRoundWinner: undefined
     };
     
     // Create deck and deal cards
@@ -632,6 +633,9 @@ function endRound(gameState, room) {
     }
   });
   
+  // Store round winner for next round's starting player
+  gameState.lastRoundWinner = winners.length === 1 ? winners[0] : winners[0]; // If tie, pick first winner
+  
   // Reset for next round
   gameState.round++;
   gameState.stakes = 1;
@@ -653,7 +657,14 @@ function endRound(gameState, room) {
     // Continue with new round after a delay
     setTimeout(() => {
       gameState.gamePhase = 'laundry';
-      gameState.currentPlayer = 0;
+      // Set starting player to last round's winner (if they're still in the game)
+      if (gameState.lastRoundWinner !== undefined && 
+          gameState.playersInRound.includes(gameState.lastRoundWinner)) {
+        gameState.currentPlayer = gameState.lastRoundWinner;
+      } else {
+        // Fallback to first active player if winner was eliminated
+        gameState.currentPlayer = gameState.playersInRound[0];
+      }
       
       // Reset card visibility for new round
       gameState.players.forEach(player => {
