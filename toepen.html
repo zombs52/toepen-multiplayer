@@ -339,7 +339,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-0.5 🃏</h1>
+            <h1>🃏 TOEPEN V-0.6 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -352,7 +352,7 @@
                 </div>
                 <div class="input-group">
                     <label>Your Name:</label>
-                    <input type="text" id="lobbyPlayerName" placeholder="Enter your name" value="You">
+                    <input type="text" id="lobbyPlayerName" placeholder="Enter your name" value="Player">
                 </div>
                 <div style="display: flex; gap: 10px;">
                     <button class="btn btn-primary" onclick="createLobby()">Create Lobby</button>
@@ -378,7 +378,7 @@
             <div class="setup-controls">
                 <div class="input-group">
                     <label>Your Name:</label>
-                    <input type="text" id="playerName" placeholder="Enter your name" value="You">
+                    <input type="text" id="playerName" placeholder="Enter your name" value="Player">
                 </div>
                 <div class="input-group">
                     <label>Number of Players (2-4):</label>
@@ -1372,6 +1372,11 @@
         socket.on('gameStateUpdate', (data) => {
             if (isMultiplayer) {
                 syncGameState(data.gameState);
+                
+                // Handle game event messages
+                if (data.lastAction) {
+                    handleGameEvent(data.lastAction, data.gameState);
+                }
             }
         });
         
@@ -1388,6 +1393,46 @@
             const status = document.getElementById('gameStatus');
             if (status) {
                 status.textContent = text;
+            }
+        }
+        
+        function handleGameEvent(action, gameState) {
+            switch (action.type) {
+                case 'playCard':
+                    const playerName = gameState.players[action.playerIndex]?.name || 'Unknown';
+                    game.updateGameStatus(`${playerName} played a card.`);
+                    break;
+                case 'trickComplete':
+                    if (gameState.lastTrickWinner) {
+                        game.updateGameStatus(`${gameState.lastTrickWinner} wins the trick!`);
+                    }
+                    break;
+                case 'toep':
+                    const toepperName = gameState.players[action.playerIndex]?.name || 'Unknown';
+                    game.updateGameStatus(`${toepperName} toeps! Stakes raised to ${gameState.stakes}.`);
+                    break;
+                case 'acceptToep':
+                    const accepterName = gameState.players[action.playerIndex]?.name || 'Unknown';
+                    game.updateGameStatus(`${accepterName} accepts the toep.`);
+                    break;
+                case 'foldToToep':
+                    const folderName = gameState.players[action.playerIndex]?.name || 'Unknown';
+                    game.updateGameStatus(`${folderName} folds to the toep.`);
+                    break;
+                case 'submitLaundry':
+                    const laundryPlayer = gameState.players[action.playerIndex]?.name || 'Unknown';
+                    const laundryType = action.laundryType === 'witte' ? 'Witte was' : 'Vuile was';
+                    game.updateGameStatus(`${laundryPlayer} claims ${laundryType}! Click to inspect or wait.`);
+                    break;
+                case 'laundryPhaseEnd':
+                    game.updateGameStatus(`Laundry phase ended. Game begins!`);
+                    break;
+                case 'newRound':
+                    game.updateGameStatus(`Round ${gameState.round} begins! Check for laundry.`);
+                    break;
+                case 'toepResponsesComplete':
+                    game.updateGameStatus(`All players responded to toep. Continuing game.`);
+                    break;
             }
         }
         
@@ -1431,6 +1476,13 @@
                 game.roundTrickWins[i] = serverState.roundTrickWins[serverIndex] || 0;
             }
             
+            // Handle playerStakesOnEntry array
+            game.playerStakesOnEntry = [];
+            for (let i = 0; i < serverState.players.length; i++) {
+                const serverIndex = (myServerIndex + i) % serverState.players.length;
+                game.playerStakesOnEntry[i] = serverState.playerStakesOnEntry[serverIndex] || 1;
+            }
+            
             // Convert current trick player indices
             game.currentTrick = serverState.currentTrick.map(play => ({
                 card: play.card,
@@ -1445,6 +1497,17 @@
             game.tricksPlayed = serverState.tricksPlayed;
             game.leadSuit = serverState.leadSuit;
             
+            // Handle toep responses (if exists)
+            if (serverState.toepResponses) {
+                game.toepResponses = [];
+                for (let i = 0; i < serverState.players.length; i++) {
+                    const serverIndex = (myServerIndex + i) % serverState.players.length;
+                    game.toepResponses[i] = serverState.toepResponses[serverIndex];
+                }
+            } else {
+                game.toepResponses = null;
+            }
+            
             // Handle pending laundry
             if (serverState.pendingLaundry) {
                 game.pendingLaundry = {
@@ -1455,21 +1518,42 @@
                 game.pendingLaundry = null;
             }
             
+            // Show/hide toep decision screen based on game state
+            if (serverState.gamePhase === 'toepResponse' && 
+                serverState.toepResponses && 
+                serverState.toepResponses[myServerIndex] === null &&
+                serverState.playersInRound.includes(myServerIndex)) {
+                game.showToepDecisionScreen();
+            } else {
+                // Hide toep decision screen if it's showing and no longer needed
+                if (document.getElementById('toepDecisionScreen').style.display !== 'none') {
+                    game.hideToepDecisionScreen();
+                }
+            }
+            
             game.updateDisplay();
         }
 
         function showLobby() {
+            // Sync name from setup screen to lobby screen
+            const setupName = document.getElementById('playerName').value || 'Player';
+            document.getElementById('lobbyPlayerName').value = setupName;
+            
             document.getElementById('setupScreen').style.display = 'none';
             document.getElementById('lobbyScreen').style.display = 'block';
         }
 
         function backToSetup() {
+            // Sync name back from lobby screen to setup screen
+            const lobbyName = document.getElementById('lobbyPlayerName').value || 'Player';
+            document.getElementById('playerName').value = lobbyName;
+            
             document.getElementById('lobbyScreen').style.display = 'none';
             document.getElementById('setupScreen').style.display = 'block';
         }
 
         function createLobby() {
-            const playerName = document.getElementById('lobbyPlayerName').value || 'You';
+            const playerName = document.getElementById('lobbyPlayerName').value || 'Player';
             
             if (!playerName.trim()) {
                 alert('Please enter your name!');
@@ -1481,7 +1565,7 @@
         }
 
         function joinLobby() {
-            const playerName = document.getElementById('lobbyPlayerName').value || 'You';
+            const playerName = document.getElementById('lobbyPlayerName').value || 'Player';
             const lobbyCode = document.getElementById('lobbyCode').value.toUpperCase();
             
             if (!lobbyCode) {
@@ -1587,7 +1671,7 @@
         }
 
         function startGame() {
-            const playerName = document.getElementById('playerName').value || 'You';
+            const playerName = document.getElementById('playerName').value || 'Player';
             const numPlayers = parseInt(document.getElementById('numPlayers').value);
             
             game.players = [{name: playerName, points: 0, hand: []}];
@@ -1623,94 +1707,115 @@
         }
 
         function acceptToep() {
-            game.hideToepDecisionScreen();
-            
-            // Update stakes tracking for human player who accepts
-            game.playerStakesOnEntry[0] = game.stakes;
-            
-            // Continue with AI responses for other players
-            let playersToRespond = game.playersInRound.filter(p => p !== game.currentPlayer && p !== 0);
-            let playersFolded = [];
-            let playersAccepted = [];
-            
-            playersToRespond.forEach(playerIndex => {
-                const foldChance = game.stakes >= 4 ? 0.4 : 0.25;
-                if (Math.random() < foldChance) {
-                    playersFolded.push(playerIndex);
-                } else {
-                    playersAccepted.push(playerIndex);
-                    // Update stakes tracking for AI players who accept
-                    game.playerStakesOnEntry[playerIndex] = game.stakes;
-                }
-            });
-            
-            if (playersFolded.length > 0) {
-                let foldMessages = [];
-                playersFolded.forEach(p => {
-                    const penaltyPoints = game.playerStakesOnEntry[p];
-                    game.players[p].points += penaltyPoints;
-                    foldMessages.push(`${game.players[p].name} (gets ${penaltyPoints} pts)`);
+            if (isMultiplayer) {
+                socket.emit('gameAction', { type: 'acceptToep' });
+                game.hideToepDecisionScreen();
+            } else {
+                game.hideToepDecisionScreen();
+                
+                // Update stakes tracking for human player who accepts
+                game.playerStakesOnEntry[0] = game.stakes;
+                
+                // Continue with AI responses for other players
+                let playersToRespond = game.playersInRound.filter(p => p !== game.currentPlayer && p !== 0);
+                let playersFolded = [];
+                let playersAccepted = [];
+                
+                playersToRespond.forEach(playerIndex => {
+                    const foldChance = game.stakes >= 4 ? 0.4 : 0.25;
+                    if (Math.random() < foldChance) {
+                        playersFolded.push(playerIndex);
+                    } else {
+                        playersAccepted.push(playerIndex);
+                        // Update stakes tracking for AI players who accept
+                        game.playerStakesOnEntry[playerIndex] = game.stakes;
+                    }
                 });
                 
-                game.updateGameStatus(`You accept! ${foldMessages.join(', ')} fold(s)!`);
-                game.playersInRound = game.playersInRound.filter(p => !playersFolded.includes(p));
-            } else {
-                game.updateGameStatus(`You accept the toep! All players continue.`);
-            }
-            
-            if (game.playersInRound.length === 1) {
-                setTimeout(() => game.endRound(), 2000);
-                return;
-            }
-            
-            // Continue playing
-            setTimeout(() => {
-                if (game.currentPlayer !== 0) {
-                    game.handleAIPlay();
+                if (playersFolded.length > 0) {
+                    let foldMessages = [];
+                    playersFolded.forEach(p => {
+                        const penaltyPoints = game.playerStakesOnEntry[p];
+                        game.players[p].points += penaltyPoints;
+                        foldMessages.push(`${game.players[p].name} (gets ${penaltyPoints} pts)`);
+                    });
+                    
+                    game.updateGameStatus(`You accept! ${foldMessages.join(', ')} fold(s)!`);
+                    game.playersInRound = game.playersInRound.filter(p => !playersFolded.includes(p));
+                } else {
+                    game.updateGameStatus(`You accept the toep! All players continue.`);
                 }
-            }, 1500);
-            
-            game.updateDisplay();
+                
+                if (game.playersInRound.length === 1) {
+                    setTimeout(() => game.endRound(), 2000);
+                    return;
+                }
+                
+                // Continue playing
+                setTimeout(() => {
+                    if (game.currentPlayer !== 0) {
+                        game.handleAIPlay();
+                    }
+                }, 1500);
+                
+                game.updateDisplay();
+            }
         }
 
         function foldToToep() {
-            game.hideToepDecisionScreen();
-            
-            // Player folds - gets penalty points based on entry stakes
-            const penaltyPoints = game.playerStakesOnEntry[0];
-            game.players[0].points += penaltyPoints;
-            game.playersInRound = game.playersInRound.filter(p => p !== 0);
-            
-            game.updateGameStatus(`You fold and get ${penaltyPoints} penalty points!`);
-            
-            // Continue with other AI responses
-            let playersToRespond = game.playersInRound.filter(p => p !== game.currentPlayer);
-            let playersFolded = [];
-            let playersAccepted = [];
-            
-            playersToRespond.forEach(playerIndex => {
-                const foldChance = game.stakes >= 4 ? 0.4 : 0.25;
-                if (Math.random() < foldChance) {
-                    playersFolded.push(playerIndex);
-                } else {
-                    playersAccepted.push(playerIndex);
-                    // Update stakes tracking for AI players who accept
-                    game.playerStakesOnEntry[playerIndex] = game.stakes;
-                }
-            });
-            
-            if (playersFolded.length > 0) {
-                let foldMessages = [];
-                playersFolded.forEach(p => {
-                    const penaltyPoints = game.playerStakesOnEntry[p];
-                    game.players[p].points += penaltyPoints;
-                    foldMessages.push(`${game.players[p].name} (gets ${penaltyPoints} pts)`);
+            if (isMultiplayer) {
+                socket.emit('gameAction', { type: 'foldToToep' });
+                game.hideToepDecisionScreen();
+            } else {
+                game.hideToepDecisionScreen();
+                
+                // Player folds - gets penalty points based on entry stakes
+                const penaltyPoints = game.playerStakesOnEntry[0];
+                game.players[0].points += penaltyPoints;
+                game.playersInRound = game.playersInRound.filter(p => p !== 0);
+                
+                game.updateGameStatus(`You fold and get ${penaltyPoints} penalty points!`);
+                
+                // Continue with other AI responses
+                let playersToRespond = game.playersInRound.filter(p => p !== game.currentPlayer);
+                let playersFolded = [];
+                let playersAccepted = [];
+                
+                playersToRespond.forEach(playerIndex => {
+                    const foldChance = game.stakes >= 4 ? 0.4 : 0.25;
+                    if (Math.random() < foldChance) {
+                        playersFolded.push(playerIndex);
+                    } else {
+                        playersAccepted.push(playerIndex);
+                        // Update stakes tracking for AI players who accept
+                        game.playerStakesOnEntry[playerIndex] = game.stakes;
+                    }
                 });
                 
-                setTimeout(() => {
-                    game.updateGameStatus(`${foldMessages.join(', ')} also fold(s)!`);
-                    game.playersInRound = game.playersInRound.filter(p => !playersFolded.includes(p));
+                if (playersFolded.length > 0) {
+                    let foldMessages = [];
+                    playersFolded.forEach(p => {
+                        const penaltyPoints = game.playerStakesOnEntry[p];
+                        game.players[p].points += penaltyPoints;
+                        foldMessages.push(`${game.players[p].name} (gets ${penaltyPoints} pts)`);
+                    });
                     
+                    setTimeout(() => {
+                        game.updateGameStatus(`${foldMessages.join(', ')} also fold(s)!`);
+                        game.playersInRound = game.playersInRound.filter(p => !playersFolded.includes(p));
+                        
+                        if (game.playersInRound.length === 1) {
+                            game.updateGameStatus(`${game.players[game.playersInRound[0]].name} wins the round!`);
+                            setTimeout(() => game.endRound(), 2000);
+                            return;
+                        }
+                        
+                        // Continue with remaining players
+                        game.currentPlayer = game.playersInRound[0];
+                        setTimeout(() => game.handleAIPlay(), 1000);
+                        game.updateDisplay();
+                    }, 1000);
+                } else {
                     if (game.playersInRound.length === 1) {
                         game.updateGameStatus(`${game.players[game.playersInRound[0]].name} wins the round!`);
                         setTimeout(() => game.endRound(), 2000);
@@ -1718,26 +1823,15 @@
                     }
                     
                     // Continue with remaining players
-                    game.currentPlayer = game.playersInRound[0];
-                    setTimeout(() => game.handleAIPlay(), 1000);
-                    game.updateDisplay();
-                }, 1000);
-            } else {
-                if (game.playersInRound.length === 1) {
-                    game.updateGameStatus(`${game.players[game.playersInRound[0]].name} wins the round!`);
-                    setTimeout(() => game.endRound(), 2000);
-                    return;
+                    setTimeout(() => {
+                        if (game.currentPlayer !== 0) {
+                            game.handleAIPlay();
+                        }
+                    }, 1500);
                 }
                 
-                // Continue with remaining players
-                setTimeout(() => {
-                    if (game.currentPlayer !== 0) {
-                        game.handleAIPlay();
-                    }
-                }, 1500);
+                game.updateDisplay();
             }
-            
-            game.updateDisplay();
         }
 
         function submitVuileWas() {

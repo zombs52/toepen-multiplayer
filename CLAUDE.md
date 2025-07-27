@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a web-based implementation of Toepen, a classic Dutch card game. The project is a monolithic single-page application built with vanilla HTML, CSS, and JavaScript contained entirely within `toepen.html` (~1,327 lines).
+This is a web-based implementation of Toepen, a classic Dutch card game. The project consists of:
+- **Frontend**: Monolithic single-page application in `toepen.html` (~1,327 lines) using vanilla HTML, CSS, and JavaScript
+- **Backend**: Node.js/Express server (`server.js`) with Socket.io for real-time multiplayer functionality
 
 ## Architecture
 
@@ -46,7 +48,20 @@ Uses `setTimeout()` extensively for natural game flow timing and AI delays
 
 ## Commands
 
+### Development Setup
+```bash
+# Install dependencies
+npm install
+
+# Start multiplayer server in development mode (with auto-restart)
+npm run dev
+
+# Start multiplayer server in production mode
+npm start
+```
+
 ### Running the Game
+**Single Player (offline):**
 ```bash
 # Windows
 start toepen.html
@@ -58,11 +73,30 @@ open toepen.html
 xdg-open toepen.html
 ```
 
+**Multiplayer (online):**
+1. Start server: `npm start`
+2. Open browser to `http://localhost:3000`
+3. Create or join room using 6-character room codes
+
 ### Testing
 No automated testing framework - manual testing only:
 - Test different player counts (2-4 players)
 - Test toeping mechanics and folding scenarios
 - Test elimination conditions and win states
+
+### Debugging and Development
+**Server Logs**: Server outputs detailed action logs to console:
+```bash
+Player 2 (PlayerName) action: playCard {cardIndex: 1}
+Game phase: playing, Current player: 2
+```
+
+**Network Debugging**: Use browser dev tools Network tab to monitor Socket.io events
+
+**Local Multiplayer Testing**:
+1. Start server: `npm start`
+2. Open multiple browser tabs to `http://localhost:3000`
+3. Create room in first tab, join with room code in others
 
 ## Key Game Mechanics
 
@@ -90,11 +124,36 @@ Game uses phase-based state machine to control available actions and UI states
 ### Stakes Tracking System  
 Critical implementation detail: `playerStakesOnEntry` array tracks the stakes level when each player entered the current round. This prevents players from folding after stakes increase to avoid higher penalties.
 
-### Multiplayer Simulation
-Current lobby system is frontend-only simulation. Real multiplayer would require:
-- Backend WebSocket server
-- Player session management  
-- Network state synchronization
+### Multiplayer Architecture
+Real-time multiplayer implemented using Socket.io:
+- **Server State**: Game rooms stored in Map with room codes
+- **Event-Based Sync**: All game actions broadcast to room members
+- **Dual-Mode Support**: Same frontend works for both offline and online play
+- **Room Management**: 6-character room codes for easy joining
+
+#### Socket.io Communication Pattern
+- **Client Actions**: `gameAction` events with action types (`playCard`, `toep`, `fold`, etc.)
+- **Server Responses**: `gameStateUpdate` broadcasts to all room members
+- **Room Management**: 6-character codes stored in `Map<string, Room>` structure
+
+#### Server State Management (server.js)
+- **Game Rooms**: Persistent in-memory storage using Map
+- **Player Tracking**: Socket ID mapping to player objects
+- **Disconnection Handling**: Automatic cleanup and host reassignment
+- **Action Processing**: Centralized `processGameAction()` function validates and applies game logic
+
+#### Key Server Functions
+- `createDeckAndDeal()`: Server-side card shuffling and dealing (lines 32-73)
+- `isValidPlay()`: Suit-following validation (lines 75-91)
+- `evaluateTrick()`: Winner determination using Toepen hierarchy (lines 495-529)
+- `endRound()`: Penalty calculation and elimination logic (lines 531-597)
+
+#### Laundry System Implementation
+Special "Laundry" mechanics for specific hand combinations:
+- **Witte Was**: 4 face cards (J, Q, K)
+- **Vuile Was**: 3 face cards + 1 seven
+- **Inspection Phase**: 10-second window for laundry claims
+- **Penalty System**: Wrong claims result in visible cards or penalty points
 
 ### Browser Requirements
 - Modern ES6+ support required

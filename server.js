@@ -90,6 +90,74 @@ function isValidPlay(gameState, card) {
   return true;
 }
 
+// Laundry detection functions
+function isVuileWas(hand) {
+  const faceCards = hand.filter(card => ['J', 'Q', 'K'].includes(card.rank));
+  const sevens = hand.filter(card => card.rank === '7');
+  return faceCards.length === 3 && sevens.length === 1;
+}
+
+function isWitteWas(hand) {
+  const faceCards = hand.filter(card => ['J', 'Q', 'K'].includes(card.rank));
+  return faceCards.length === 4;
+}
+
+function hasLaundry(hand) {
+  return isVuileWas(hand) || isWitteWas(hand);
+}
+
+function getLaundryType(hand) {
+  if (isWitteWas(hand)) return 'witte';
+  if (isVuileWas(hand)) return 'vuile';
+  return null;
+}
+
+function processLaundryInspection(gameState, inspectorIndex, room) {
+  if (!gameState.pendingLaundry) return;
+
+  const { playerIndex, type, cards } = gameState.pendingLaundry;
+  const player = gameState.players[playerIndex];
+
+  const isValidLaundry = type === 'witte' ? isWitteWas(cards) : isVuileWas(cards);
+
+  if (isValidLaundry) {
+    // Valid laundry - inspector gets penalty
+    gameState.players[inspectorIndex].points += 1;
+    
+    // Give player new hand
+    player.hand = [];
+    for (let i = 0; i < 4; i++) {
+      if (gameState.deck.length > 0) {
+        player.hand.push(gameState.deck.pop());
+      }
+    }
+  } else {
+    // Invalid laundry - bluff caught!
+    player.points += 1;
+    player.cardsVisible = true;
+  }
+
+  gameState.pendingLaundry = null;
+  gameState.awaitingInspection = false;
+  
+  // Continue with laundry phase or move to playing
+  if (gameState.deck.length >= 4) {
+    // More laundry possible - reset timer
+    gameState.gamePhase = 'laundry';
+    setTimeout(() => {
+      if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
+        gameState.gamePhase = 'playing';
+        io.to(room.code).emit('gameStateUpdate', {
+          gameState: gameState,
+          lastAction: { type: 'laundryPhaseEnd' }
+        });
+      }
+    }, 10000);
+  } else {
+    gameState.gamePhase = 'playing';
+  }
+}
+
 // Socket connection handling
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
@@ -209,6 +277,7 @@ io.on('connection', (socket) => {
       tricksPlayed: 0,
       playersInRound: [...Array(room.players.length).keys()],
       roundTrickWins: new Array(room.players.length).fill(0),
+      playerStakesOnEntry: new Array(room.players.length).fill(1),
       lastToeper: -1,
       awaitingInspection: false,
       pendingLaundry: null,
@@ -222,6 +291,17 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('gameStarted', {
       gameState: room.gameState
     });
+    
+    // Start laundry timer (10 seconds)
+    setTimeout(() => {
+      if (room.gameState && room.gameState.gamePhase === 'laundry' && !room.gameState.awaitingInspection) {
+        room.gameState.gamePhase = 'playing';
+        io.to(roomCode).emit('gameStateUpdate', {
+          gameState: room.gameState,
+          lastAction: { type: 'laundryPhaseEnd' }
+        });
+      }
+    }, 10000);
     
     console.log(`Game started in room ${roomCode}`);
   });
@@ -243,14 +323,20 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // Process the action and update game state
-    processGameAction(room, playerIndex, action);
+    console.log(`Player ${playerIndex} (${room.gameState.players[playerIndex].name}) action: ${action.type}`, action);
+    console.log(`Game phase: ${room.gameState.gamePhase}, Current player: ${room.gameState.currentPlayer}`);
     
-    // Broadcast updated game state to all players
-    io.to(roomCode).emit('gameStateUpdate', {
-      gameState: room.gameState,
-      lastAction: action
-    });
+    // Process the action and update game state
+    const shouldBroadcast = processGameAction(room, playerIndex, action);
+    
+    // Broadcast updated game state to all players (if not already done in processGameAction)
+    if (shouldBroadcast) {
+      const actionWithPlayer = { ...action, playerIndex: playerIndex };
+      io.to(roomCode).emit('gameStateUpdate', {
+        gameState: room.gameState,
+        lastAction: actionWithPlayer
+      });
+    }
   });
 
   // Handle disconnections
@@ -285,9 +371,10 @@ io.on('connection', (socket) => {
   });
 });
 
-// Game action processor
+// Game action processor - returns true if main handler should broadcast, false if already handled
 function processGameAction(room, playerIndex, action) {
   const gameState = room.gameState;
+  const roomCode = room.code;
   
   switch (action.type) {
     case 'playCard':
@@ -312,32 +399,89 @@ function processGameAction(room, playerIndex, action) {
           
           // Move to next player or evaluate trick
           if (gameState.currentTrick.length === gameState.playersInRound.length) {
-            // Trick complete - evaluate winner
-            evaluateTrick(gameState);
+            // Trick complete - show all cards for 3 seconds before evaluating
+            setTimeout(() => {
+              evaluateTrick(gameState, room);
+              // Broadcast updated state after trick evaluation
+              io.to(roomCode).emit('gameStateUpdate', {
+                gameState: gameState,
+                lastAction: { type: 'trickComplete' }
+              });
+            }, 3000);
           } else {
             // Next player's turn
             gameState.currentPlayer = getNextPlayer(gameState);
           }
         }
       }
-      break;
+      return true;
       
     case 'toep':
       if (gameState.currentPlayer === playerIndex && gameState.gamePhase === 'playing' && gameState.lastToeper !== playerIndex) {
         gameState.stakes += 1;
         gameState.lastToeper = playerIndex;
         gameState.gamePhase = 'toepResponse';
+        
+        // Update stakes tracking for toeper
+        gameState.playerStakesOnEntry[playerIndex] = gameState.stakes;
+        
+        // Initialize toep responses
+        gameState.toepResponses = new Array(gameState.players.length).fill(null);
+        gameState.toepResponses[playerIndex] = 'accept'; // Toeper automatically accepts
+        
+        // In multiplayer, we don't auto-handle responses - let real players respond
+        // Just set a timeout to auto-accept any remaining null responses after 30 seconds
+        setTimeout(() => {
+          if (gameState.gamePhase === 'toepResponse' && gameState.toepResponses) {
+            handleAIToepResponses(gameState, room);
+            // Broadcast the updated state after timeout
+            io.to(roomCode).emit('gameStateUpdate', {
+              gameState: gameState,
+              lastAction: { type: 'autoToepResponse' }
+            });
+          }
+        }, 30000);
       }
-      break;
+      return true;
+      
+    case 'acceptToep':
+      if (gameState.gamePhase === 'toepResponse' && gameState.toepResponses && gameState.toepResponses[playerIndex] === null) {
+        gameState.toepResponses[playerIndex] = 'accept';
+        // Update stakes tracking for accepting player
+        gameState.playerStakesOnEntry[playerIndex] = gameState.stakes;
+        
+        // Broadcast the acceptance immediately
+        io.to(roomCode).emit('gameStateUpdate', {
+          gameState: gameState,
+          lastAction: { type: 'acceptToep', playerIndex: playerIndex }
+        });
+        
+        checkToepResponses(gameState, room);
+      }
+      return false; // Already broadcasted
+      
+    case 'foldToToep':
+      if (gameState.gamePhase === 'toepResponse' && gameState.toepResponses && gameState.toepResponses[playerIndex] === null) {
+        gameState.toepResponses[playerIndex] = 'fold';
+        
+        // Broadcast the fold immediately
+        io.to(roomCode).emit('gameStateUpdate', {
+          gameState: gameState,
+          lastAction: { type: 'foldToToep', playerIndex: playerIndex }
+        });
+        
+        checkToepResponses(gameState, room);
+      }
+      return false; // Already broadcasted
       
     case 'fold':
       if (gameState.playersInRound.includes(playerIndex)) {
         // Player folds - remove from round
         gameState.playersInRound = gameState.playersInRound.filter(p => p !== playerIndex);
         // Add penalty points based on stakes when they entered
-        gameState.players[playerIndex].points += gameState.stakes;
+        gameState.players[playerIndex].points += gameState.playerStakesOnEntry[playerIndex];
       }
-      break;
+      return true;
       
     case 'submitLaundry':
       if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
@@ -348,34 +492,19 @@ function processGameAction(room, playerIndex, action) {
         };
         gameState.awaitingInspection = true;
       }
-      break;
+      return true;
       
     case 'inspectLaundry':
       if (gameState.awaitingInspection && gameState.pendingLaundry) {
-        processLaundryInspection(gameState, playerIndex);
+        processLaundryInspection(gameState, playerIndex, room);
       }
-      break;
+      return true;
+      
+    default:
+      return true;
   }
-}
-
-function evaluateTrick(gameState) {
-  // Evaluate trick winner (simplified - you can copy the full logic from your frontend)
-  let winner = gameState.currentTrick[0];
-  gameState.currentTrick.forEach(play => {
-    if (play.card.value > winner.card.value) {
-      winner = play;
-    }
-  });
   
-  gameState.roundTrickWins[winner.player]++;
-  gameState.currentTrick = [];
-  gameState.tricksPlayed++;
-  gameState.currentPlayer = winner.player;
-  
-  // Check if round is complete
-  if (gameState.tricksPlayed === 4) {
-    endRound(gameState);
-  }
+  return true; // Default case
 }
 
 function getNextPlayer(gameState) {
@@ -384,20 +513,56 @@ function getNextPlayer(gameState) {
   return gameState.playersInRound[nextIndex];
 }
 
-function endRound(gameState) {
+function evaluateTrick(gameState, room) {
+  if (gameState.currentTrick.length === 0) return;
+  
+  // Find winner - highest card of lead suit wins
+  let winner = gameState.currentTrick[0];
+  
+  gameState.currentTrick.forEach(play => {
+    // Only cards of lead suit can win
+    if (play.card.suit === gameState.leadSuit && 
+        winner.card.suit === gameState.leadSuit) {
+      if (play.card.value > winner.card.value) {
+        winner = play;
+      }
+    } else if (play.card.suit === gameState.leadSuit && 
+               winner.card.suit !== gameState.leadSuit) {
+      // This card follows suit, current winner doesn't
+      winner = play;
+    }
+  });
+  
+  gameState.roundTrickWins[winner.player]++;
+  const winnerName = gameState.players[winner.player].name;
+  gameState.currentTrick = [];
+  gameState.tricksPlayed++;
+  gameState.currentPlayer = winner.player;
+  gameState.leadSuit = null;
+  
+  // Set trick winner message for display
+  gameState.lastTrickWinner = winnerName;
+  
+  // Check if round is complete
+  if (gameState.tricksPlayed === 4) {
+    endRound(gameState, room);
+  }
+}
+
+function endRound(gameState, room) {
   // Find winner (most tricks)
   let maxTricks = Math.max(...gameState.roundTrickWins);
   let winners = [];
   gameState.roundTrickWins.forEach((tricks, index) => {
-    if (tricks === maxTricks) {
+    if (tricks === maxTricks && gameState.playersInRound.includes(index)) {
       winners.push(index);
     }
   });
   
-  // Award penalty points to non-winners
-  gameState.players.forEach((player, index) => {
-    if (!winners.includes(index)) {
-      player.points += gameState.stakes;
+  // Award penalty points to non-winners (based on their entry stakes)
+  gameState.playersInRound.forEach(playerIndex => {
+    if (!winners.includes(playerIndex)) {
+      gameState.players[playerIndex].points += gameState.playerStakesOnEntry[playerIndex];
     }
   });
   
@@ -406,17 +571,106 @@ function endRound(gameState) {
   gameState.stakes = 1;
   gameState.lastToeper = -1;
   gameState.roundTrickWins = new Array(gameState.players.length).fill(0);
+  gameState.playerStakesOnEntry = new Array(gameState.players.length).fill(1);
   gameState.tricksPlayed = 0;
-  gameState.gamePhase = 'laundry';
-  gameState.playersInRound = gameState.players.map((_, index) => index).filter(i => gameState.players[i].points < 10);
+  gameState.gamePhase = 'roundEnd';
+  
+  // Check for eliminated players
+  gameState.playersInRound = gameState.players
+    .map((_, index) => index)
+    .filter(i => gameState.players[i].points < 10);
+  
+  // Check if game is over
+  if (gameState.playersInRound.length <= 1) {
+    gameState.gamePhase = 'gameEnd';
+  } else {
+    // Continue with new round after a delay
+    setTimeout(() => {
+      gameState.gamePhase = 'laundry';
+      gameState.currentPlayer = 0;
+      
+      // Reset card visibility for new round
+      gameState.players.forEach(player => {
+        player.cardsVisible = false;
+      });
+      
+      // Create new deck and deal cards
+      createDeckAndDeal(gameState);
+      
+      // Start new laundry timer
+      setTimeout(() => {
+        if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
+          gameState.gamePhase = 'playing';
+          io.to(room.code).emit('gameStateUpdate', {
+            gameState: gameState,
+            lastAction: { type: 'laundryPhaseEnd' }
+          });
+        }
+      }, 10000);
+      
+      // Broadcast new round state
+      io.to(room.code).emit('gameStateUpdate', {
+        gameState: gameState,
+        lastAction: { type: 'newRound' }
+      });
+    }, 3000);
+  }
 }
 
-function processLaundryInspection(gameState, inspectorIndex) {
-  // Process laundry inspection (copy logic from frontend)
-  // This is simplified - you can implement the full laundry logic
-  gameState.awaitingInspection = false;
-  gameState.pendingLaundry = null;
-  gameState.gamePhase = 'playing';
+
+function checkToepResponses(gameState, room) {
+  // Check if all active players have responded
+  const activePlayerResponses = gameState.playersInRound
+    .map(playerIndex => gameState.toepResponses[playerIndex])
+    .filter(response => response !== null);
+  
+  if (activePlayerResponses.length === gameState.playersInRound.length) {
+    // All players have responded
+    const foldedPlayers = [];
+    gameState.playersInRound.forEach(playerIndex => {
+      if (gameState.toepResponses[playerIndex] === 'fold') {
+        foldedPlayers.push(playerIndex);
+        // Add penalty points based on stakes when they entered
+        gameState.players[playerIndex].points += gameState.playerStakesOnEntry[playerIndex];
+      }
+    });
+    
+    // Remove folded players from round
+    gameState.playersInRound = gameState.playersInRound.filter(
+      playerIndex => !foldedPlayers.includes(playerIndex)
+    );
+    
+    // Check if only one player left (everyone else folded)
+    if (gameState.playersInRound.length === 1) {
+      // Single winner - end round
+      endRound(gameState, room);
+    } else {
+      // Continue playing with remaining players
+      gameState.gamePhase = 'playing';
+      gameState.toepResponses = null;
+    }
+    
+    // Broadcast the updated state after all responses processed
+    io.to(room.code).emit('gameStateUpdate', {
+      gameState: gameState,
+      lastAction: { type: 'toepResponsesComplete' }
+    });
+  }
+}
+
+function handleAIToepResponses(gameState, room) {
+  // This function is called from processGameAction but not implemented
+  // Since we're handling multiplayer with real players, this can be a no-op
+  // or handle any remaining null responses as auto-accept
+  if (gameState.toepResponses) {
+    gameState.playersInRound.forEach(playerIndex => {
+      if (gameState.toepResponses[playerIndex] === null) {
+        // Auto-accept for any unresponsive players
+        gameState.toepResponses[playerIndex] = 'accept';
+      }
+    });
+    checkToepResponses(gameState, room);
+  }
 }
 
 const PORT = process.env.PORT || 3000;
