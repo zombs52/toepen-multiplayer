@@ -92,13 +92,13 @@ function isValidPlay(gameState, card) {
 
 // Laundry detection functions
 function isVuileWas(hand) {
-  const faceCards = hand.filter(card => ['J', 'Q', 'K'].includes(card.rank));
+  const faceCards = hand.filter(card => ['J', 'Q', 'K', 'A'].includes(card.rank));
   const sevens = hand.filter(card => card.rank === '7');
   return faceCards.length === 3 && sevens.length === 1;
 }
 
 function isWitteWas(hand) {
-  const faceCards = hand.filter(card => ['J', 'Q', 'K'].includes(card.rank));
+  const faceCards = hand.filter(card => ['J', 'Q', 'K', 'A'].includes(card.rank));
   return faceCards.length === 4;
 }
 
@@ -120,19 +120,19 @@ function processLaundryInspection(gameState, inspectorIndex, room) {
 
   const isValidLaundry = type === 'witte' ? isWitteWas(cards) : isVuileWas(cards);
 
+  // Always give player new hand when inspected
+  player.hand = [];
+  for (let i = 0; i < 4; i++) {
+    if (gameState.deck.length > 0) {
+      player.hand.push(gameState.deck.pop());
+    }
+  }
+  
   if (isValidLaundry) {
     // Valid laundry - inspector gets penalty
     gameState.players[inspectorIndex].points += 1;
-    
-    // Give player new hand
-    player.hand = [];
-    for (let i = 0; i < 4; i++) {
-      if (gameState.deck.length > 0) {
-        player.hand.push(gameState.deck.pop());
-      }
-    }
   } else {
-    // Invalid laundry - bluff caught!
+    // Invalid laundry - bluff caught, claimer gets penalty and visible cards
     player.points += 1;
     player.cardsVisible = true;
   }
@@ -511,6 +511,16 @@ function processGameAction(room, playerIndex, action) {
             // Continue laundry phase or end it
             if (gameState.deck.length >= 4) {
               gameState.gamePhase = 'laundry';
+              // Set timer to end laundry phase
+              setTimeout(() => {
+                if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
+                  gameState.gamePhase = 'playing';
+                  io.to(room.code).emit('gameStateUpdate', {
+                    gameState: gameState,
+                    lastAction: { type: 'laundryPhaseEnd' }
+                  });
+                }
+              }, 10000);
             } else {
               gameState.gamePhase = 'playing';
             }

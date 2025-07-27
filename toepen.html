@@ -339,7 +339,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-0.8 🃏</h1>
+            <h1>🃏 TOEPEN V-0.9 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -1192,35 +1192,42 @@
                         // Show eliminated players
                         playerEl.classList.toggle('eliminated', player.points >= 10);
                         
-                        // Laundry inspection - show claimer with special border, make other players clickable
+                        // Laundry inspection - make claimer clickable for inspection
                         if (this.awaitingInspection && this.pendingLaundry) {
                             if (this.pendingLaundry.playerIndex === index) {
-                                // This is the claimer - show special border but not clickable
-                                playerEl.style.cursor = 'default';
-                                playerEl.style.border = '3px solid #ffeb3b';
-                                playerEl.title = `Claims ${this.pendingLaundry.type === 'witte' ? 'Witte was' : 'Vuile was'}`;
-                                playerEl.onclick = null;
-                            } else if (index === 0 || !isMultiplayer) {
-                                // This is the human player (index 0) - make clickable to inspect
+                                // This is the claimer - make clickable for others to inspect
                                 playerEl.style.cursor = 'pointer';
-                                playerEl.style.border = '3px solid #4caf50';
-                                playerEl.title = 'Click to inspect laundry';
-                                playerEl.onclick = () => {
-                                    if (isMultiplayer) {
+                                playerEl.style.border = '3px solid #ffeb3b';
+                                playerEl.title = `Claims ${this.pendingLaundry.type === 'witte' ? 'Witte was' : 'Vuile was'} - Click to inspect!`;
+                                
+                                // In multiplayer, only the human player (index 0) can click to inspect
+                                if (index !== 0 && isMultiplayer) {
+                                    // This is the claimer for the human player - allow clicking
+                                    playerEl.onclick = () => {
                                         socket.emit('gameAction', { type: 'inspectLaundry' });
-                                    } else {
+                                    };
+                                } else if (!isMultiplayer) {
+                                    // Singleplayer - human can inspect any claimer
+                                    playerEl.onclick = () => {
                                         this.inspectLaundry(0);
-                                    }
-                                };
-                            } else {
-                                // Other AI players can inspect too (simulate) - reduced chance
-                                if (Math.random() < 0.03) { // 3% chance AI inspects (rare but possible)
-                                    setTimeout(() => this.inspectLaundry(index), Math.random() * 5000 + 2000);
+                                    };
+                                } else {
+                                    // This is the human player themselves claiming - can't inspect self
+                                    playerEl.style.cursor = 'default';
+                                    playerEl.title = `You claim ${this.pendingLaundry.type === 'witte' ? 'Witte was' : 'Vuile was'} - waiting for inspection`;
+                                    playerEl.onclick = null;
                                 }
+                            } else {
+                                // This is not the claimer - show normal appearance
                                 playerEl.style.cursor = 'default';
                                 playerEl.style.border = 'none';
                                 playerEl.title = '';
                                 playerEl.onclick = null;
+                                
+                                // Other AI players can inspect too (simulate) - reduced chance
+                                if (Math.random() < 0.03) { // 3% chance AI inspects (rare but possible)
+                                    setTimeout(() => this.inspectLaundry(index), Math.random() * 5000 + 2000);
+                                }
                             }
                         } else {
                             playerEl.style.cursor = 'default';
