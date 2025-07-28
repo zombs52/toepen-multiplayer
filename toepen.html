@@ -1382,6 +1382,8 @@
                 
                 this.round++;
                 this.gamePhase = 'roundEnd';
+                this.currentTrick = []; // Clear any cards left on the table
+                this.leadSuit = null; // Clear lead suit
                 this.blindToepCaller = -1; // Reset blind toep caller
                 setTimeout(() => {
                     this.updateDisplay();

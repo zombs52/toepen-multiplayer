@@ -733,6 +733,8 @@ function endRound(gameState, room) {
   gameState.roundTrickWins = new Array(gameState.players.length).fill(0);
   gameState.playerStakesOnEntry = new Array(gameState.players.length).fill(1);
   gameState.tricksPlayed = 0;
+  gameState.currentTrick = []; // Clear any cards left on the table
+  gameState.leadSuit = null; // Clear lead suit
   gameState.gamePhase = 'roundEnd';
   
   // Check for eliminated players
