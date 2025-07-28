@@ -960,6 +960,12 @@
                     return;
                 }
                 
+                // Check if player is playing for death (would be eliminated if they lose)
+                if (this.isPlayingForDeath(0)) {
+                    this.updateGameStatus("You can't toep when playing for death! You're already risking elimination.");
+                    return;
+                }
+                
                 this.stakes += 1;
                 this.lastToeper = 0; // Mark human player as the last one to toep
                 this.updateGameStatus(`You toep! Stakes raised to ${this.stakes}. Others must accept or fold.`);
@@ -977,14 +983,21 @@
                 let playersAccepted = [];
                 
                 playersToRespond.forEach(playerIndex => {
-                    // AI decision: 40% chance to fold when stakes are high
-                    const foldChance = this.stakes >= 4 ? 0.4 : 0.2;
-                    if (Math.random() < foldChance) {
-                        playersFolded.push(playerIndex);
-                    } else {
+                    // Players playing for death must automatically accept all toeps
+                    if (this.isPlayingForDeath(playerIndex)) {
                         playersAccepted.push(playerIndex);
-                        // Update stakes tracking for AI players who accept
                         this.playerStakesOnEntry[playerIndex] = this.stakes;
+                        this.updateGameStatus(`${this.players[playerIndex].name} is playing for death - automatically accepts toep!`);
+                    } else {
+                        // AI decision: 40% chance to fold when stakes are high
+                        const foldChance = this.stakes >= 4 ? 0.4 : 0.2;
+                        if (Math.random() < foldChance) {
+                            playersFolded.push(playerIndex);
+                        } else {
+                            playersAccepted.push(playerIndex);
+                            // Update stakes tracking for AI players who accept
+                            this.playerStakesOnEntry[playerIndex] = this.stakes;
+                        }
                     }
                 });
                 
@@ -1159,8 +1172,9 @@
             handleAIPlay() {
                 if (this.currentPlayer === 0 || !this.playersInRound.includes(this.currentPlayer)) return;
                 
-                // AI might toep occasionally on their turn (but only if they can)
-                if (Math.random() < 0.12 && this.stakes < 8 && this.lastToeper !== this.currentPlayer) {
+                // AI might toep occasionally on their turn (but only if they can and not playing for death)
+                if (Math.random() < 0.12 && this.stakes < 8 && this.lastToeper !== this.currentPlayer && 
+                    !this.isPlayingForDeath(this.currentPlayer)) {
                     setTimeout(() => this.handleAIToep(), 500);
                     return;
                 }
@@ -1224,20 +1238,34 @@
                 
                 // Check if human player needs to decide
                 if (playersToRespond.includes(0)) {
-                    this.showToepDecisionScreen();
-                    return; // Wait for human decision
+                    // If human player is playing for death, automatically accept
+                    if (this.isPlayingForDeath(0)) {
+                        this.playerStakesOnEntry[0] = this.stakes;
+                        this.updateGameStatus(`You are playing for death - automatically accept toep! Stakes now ${this.stakes}.`);
+                        playersToRespond = playersToRespond.filter(p => p !== 0); // Remove human from decision
+                    } else {
+                        this.showToepDecisionScreen();
+                        return; // Wait for human decision
+                    }
                 }
                 
                 // Handle AI-only responses
                 let playersAccepted = [];
                 playersToRespond.forEach(playerIndex => {
-                    const foldChance = this.stakes >= 4 ? 0.4 : 0.25;
-                    if (Math.random() < foldChance) {
-                        playersFolded.push(playerIndex);
-                    } else {
+                    // Players playing for death must automatically accept all toeps
+                    if (this.isPlayingForDeath(playerIndex)) {
                         playersAccepted.push(playerIndex);
-                        // Update stakes tracking for AI players who accept
                         this.playerStakesOnEntry[playerIndex] = this.stakes;
+                        this.updateGameStatus(`${this.players[playerIndex].name} is playing for death - automatically accepts toep!`);
+                    } else {
+                        const foldChance = this.stakes >= 4 ? 0.4 : 0.25;
+                        if (Math.random() < foldChance) {
+                            playersFolded.push(playerIndex);
+                        } else {
+                            playersAccepted.push(playerIndex);
+                            // Update stakes tracking for AI players who accept
+                            this.playerStakesOnEntry[playerIndex] = this.stakes;
+                        }
                     }
                 });
                 
@@ -1270,6 +1298,13 @@
                 const hasSuit = player.hand.some(c => c.suit === this.leadSuit);
                 
                 return !hasSuit || card.suit === this.leadSuit;
+            }
+
+            // Check if a player would be eliminated if they lose this round (playing for death)
+            isPlayingForDeath(playerIndex) {
+                const player = this.players[playerIndex];
+                const playerEntryStakes = this.playerStakesOnEntry[playerIndex];
+                return (player.points + playerEntryStakes) >= 10;
             }
 
             evaluateTrick() {
