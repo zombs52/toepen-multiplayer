@@ -432,6 +432,11 @@
                 font-size: 2rem;
             }
         }
+
+        @keyframes flash {
+            0%, 100% { background-color: transparent; }
+            50% { background-color: rgba(255, 107, 107, 0.3); }
+        }
     </style>
 </head>
 <body>
@@ -850,14 +855,18 @@
                                 player.hand.push(this.deck.pop());
                             }
                         }
+                        
+                        // Show visual inspection result
+                        this.showLaundryInspectionResult(playerIndex, cards, true);
                     } else {
                         // Invalid laundry - bluff caught!
                         player.points += 1;
                         player.cardsVisible = true; // Play with cards face up
                         
-                        // Show the actual cards the player had to expose the bluff
-                        const actualCards = cards.map(card => `${card.rank}${card.suit}`).join(', ');
-                        this.updateGameStatus(`${this.players[inspectorIndex].name} catches ${player.name} bluffing! ${player.name} had: ${actualCards}. Gets 1 penalty point and must play with cards face up.`);
+                        this.updateGameStatus(`${this.players[inspectorIndex].name} catches ${player.name} bluffing! Gets 1 penalty point and visible cards.`);
+                        
+                        // Show visual inspection result
+                        this.showLaundryInspectionResult(playerIndex, cards, false);
                     }
                 }
 
@@ -1146,6 +1155,9 @@
             }
 
             evaluateTrick() {
+                // Always reset processing flag when trick is being evaluated
+                this.isProcessing = true;
+                
                 let winner = this.currentTrick[0];
                 
                 // Find highest card of lead suit
@@ -1260,6 +1272,52 @@
                         break;
                     }
                 }
+            }
+
+            showLaundryInspectionResult(playerIndex, actualCards, isValid) {
+                // Show notification and visually display the actual cards
+                const player = this.players[playerIndex];
+                const playerEl = document.getElementById(`player${playerIndex}`);
+                const cardsEl = playerEl.querySelector('.player-cards');
+                
+                // Clear current cards and show notification
+                cardsEl.innerHTML = '';
+                const notification = document.createElement('div');
+                notification.style.cssText = 'color: #ffeb3b; font-weight: bold; margin-bottom: 10px; font-size: 0.9rem;';
+                notification.textContent = `${player.name}'s actual hand was:`;
+                cardsEl.appendChild(notification);
+                
+                // Show the actual cards they had
+                actualCards.forEach(card => {
+                    const cardEl = document.createElement('div');
+                    cardEl.className = `card ${card.color}`;
+                    cardEl.textContent = `${card.rank}${card.suit}`;
+                    cardEl.style.cssText = 'border: 2px solid #ff6b6b; animation: flash 0.5s ease-in-out;';
+                    cardsEl.appendChild(cardEl);
+                });
+                
+                // After 3 seconds, replace with new cards
+                setTimeout(() => {
+                    cardsEl.innerHTML = '';
+                    if (isValid) {
+                        // Valid claim - new cards face down
+                        for (let i = 0; i < player.hand.length; i++) {
+                            const cardEl = document.createElement('div');
+                            cardEl.className = 'card card-back';
+                            cardEl.textContent = '🂠';
+                            cardsEl.appendChild(cardEl);
+                        }
+                    } else {
+                        // Invalid claim - new cards face up
+                        player.hand.forEach(card => {
+                            const cardEl = document.createElement('div');
+                            cardEl.className = `card ${card.color}`;
+                            cardEl.textContent = `${card.rank}${card.suit}`;
+                            cardEl.style.border = '2px solid #ff6b6b'; // Red border for penalty
+                            cardsEl.appendChild(cardEl);
+                        });
+                    }
+                }, 3000);
             }
 
             nextRound() {
@@ -1653,10 +1711,14 @@
                         setTimeout(() => {
                             if (result.type === 'validClaim') {
                                 game.updateGameStatus(`✅ ${claimer} had valid ${resultText}! ${inspector} gets 1 penalty point. ${claimer} gets new cards.`);
+                                if (result.actualCards) {
+                                    game.showLaundryInspectionResult(action.claimerIndex, result.actualCards, true);
+                                }
                             } else {
-                                // Show the actual cards if available
-                                const cardsText = result.actualCards ? ` Had: ${result.actualCards.map(card => `${card.rank}${card.suit}`).join(', ')}.` : '';
-                                game.updateGameStatus(`❌ ${claimer} was bluffing ${resultText}!${cardsText} ${claimer} gets 1 penalty point and visible cards.`);
+                                game.updateGameStatus(`❌ ${claimer} was bluffing ${resultText}! ${claimer} gets 1 penalty point and visible cards.`);
+                                if (result.actualCards) {
+                                    game.showLaundryInspectionResult(action.claimerIndex, result.actualCards, false);
+                                }
                             }
                         }, 1500);
                     }

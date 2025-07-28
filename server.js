@@ -135,7 +135,8 @@ function processLaundryInspection(gameState, inspectorIndex, room) {
       type: 'validClaim',
       inspector: inspectorIndex,
       claimer: playerIndex,
-      claimType: type
+      claimType: type,
+      actualCards: cards  // Include the actual cards for visual display
     };
   } else {
     // Invalid laundry - bluff caught, claimer gets penalty and visible cards
