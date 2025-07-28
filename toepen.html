@@ -1651,8 +1651,8 @@
                 document.getElementById('toepMessage').textContent = `${toepperName} calls blind toep! Stakes set to 3 points.`;
                 document.getElementById('newStakes').textContent = '3';
                 document.getElementById('yourEntryStakes').textContent = '1';
-                document.getElementById('foldPenalty').textContent = '3';
-                document.getElementById('continuePenalty').textContent = '3';
+                document.getElementById('foldPenalty').textContent = '1'; // Fold penalty is your entry stakes (1 point)
+                document.getElementById('continuePenalty').textContent = '3'; // If you continue and lose, you get 3 points
                 
                 this.isBlindToepDecision = true; // Mark this as blind toep decision
                 document.getElementById('toepDecisionOverlay').style.display = 'block';

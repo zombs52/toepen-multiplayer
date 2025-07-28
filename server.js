@@ -506,8 +506,8 @@ function processGameAction(room, playerIndex, action) {
       } else if (gameState.gamePhase === 'blindToepResponse' && gameState.blindToepResponses && gameState.blindToepResponses[playerIndex] === null) {
         gameState.blindToepResponses[playerIndex] = 'fold';
         
-        // Player gets penalty (3 points for blind toep)
-        const penaltyPoints = 3;
+        // Player gets penalty based on their entry stakes (1 point, not 3)
+        const penaltyPoints = gameState.playerStakesOnEntry[playerIndex];
         gameState.players[playerIndex].points += penaltyPoints;
         gameState.playersInRound = gameState.playersInRound.filter(p => p !== playerIndex);
         
