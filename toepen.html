@@ -909,6 +909,7 @@
 
                 this.pendingLaundry = null;
                 this.awaitingInspection = false;
+                this.isProcessing = false; // Ensure processing flag is reset
                 this.updateDisplay();
 
                 // Continue with laundry phase or move to playing
@@ -928,8 +929,12 @@
                     this.laundryPhaseTimer = null;
                 }
                 
+                // Ensure all laundry-related flags are properly reset
                 this.gamePhase = 'playing';
                 this.laundryPhaseComplete = true;
+                this.awaitingInspection = false;
+                this.pendingLaundry = null;
+                this.isProcessing = false; // Reset processing flag to ensure cards can be played
                 
                 // Check if there's a pending blind toep response
                 if (this.pendingBlindToepResponse) {
@@ -2116,6 +2121,24 @@
             document.getElementById('lobbyPlayers').style.display = 'none';
             document.getElementById('lobbyCode').value = '';
             backToSetup();
+        }
+
+        // Debug function for troubleshooting card playability issues
+        function debugGameState() {
+            if (game) {
+                console.log('=== GAME STATE DEBUG ===');
+                console.log('gamePhase:', game.gamePhase);
+                console.log('currentPlayer:', game.currentPlayer);
+                console.log('playersInRound:', game.playersInRound);
+                console.log('isProcessing:', game.isProcessing);
+                console.log('awaitingInspection:', game.awaitingInspection);
+                console.log('pendingLaundry:', game.pendingLaundry);
+                console.log('laundryPhaseComplete:', game.laundryPhaseComplete);
+                console.log('currentTrick:', game.currentTrick);
+                console.log('leadSuit:', game.leadSuit);
+                console.log('Player 0 hand:', game.players[0]?.hand);
+                showToast('Debug info logged to console', 'info');
+            }
         }
 
         // Toast notification system
