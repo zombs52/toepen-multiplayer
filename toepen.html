@@ -458,9 +458,9 @@
                     <input type="text" id="lobbyPlayerName" placeholder="Enter your name" value="Player">
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn btn-primary" id="createLobby">Create Lobby</button>
-                    <button class="btn btn-primary" id="joinLobby">Join Lobby</button>
-                    <button class="btn btn-danger" id="backToSetup">Back</button>
+                    <button class="btn btn-primary" onclick="createLobby()">Create Lobby</button>
+                    <button class="btn btn-primary" onclick="joinLobby()">Join Lobby</button>
+                    <button class="btn btn-danger" onclick="backToSetup()">Back</button>
                 </div>
             </div>
             
@@ -468,12 +468,12 @@
                 <h3>Players in Lobby:</h3>
                 <div id="playersList" style="margin: 20px 0;"></div>
                 <div style="display: flex; gap: 10px; justify-content: center;">
-                    <button class="btn btn-primary" id="addBotBtn">Add Bot</button>
-                    <button class="btn btn-primary" id="startGameBtn" style="display: none;">Start Game</button>
-                    <button class="btn btn-danger" id="leaveLobby">Leave Lobby</button>
+                    <button class="btn btn-primary" onclick="addBot()" id="addBotBtn">Add Bot</button>
+                    <button class="btn btn-primary" onclick="startLobbyGame()" id="startGameBtn" style="display: none;">Start Game</button>
+                    <button class="btn btn-danger" onclick="leaveLobby()">Leave Lobby</button>
                 </div>
                 <p id="waitingMessage" style="display: none; margin-top: 15px; font-style: italic; color: #666;">Waiting for host to start the game...</p>
-                <p style="margin-top: 15px; font-size: 0.9rem;">Share this code with friends: <strong id="currentLobbyCode"></strong> <button class="btn btn-secondary" id="copyLobbyCode" style="margin-left: 10px; padding: 2px 8px; font-size: 0.8rem;">Copy</button></p>
+                <p style="margin-top: 15px; font-size: 0.9rem;">Share this code with friends: <strong id="currentLobbyCode"></strong> <button class="btn btn-secondary" onclick="copyLobbyCode()" style="margin-left: 10px; padding: 2px 8px; font-size: 0.8rem;">Copy</button></p>
             </div>
         </div>
         <div id="setupScreen" class="setup-screen">
@@ -488,8 +488,8 @@
                     <input type="number" id="numPlayers" min="2" max="4" value="3">
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn btn-primary" id="startGame">Play with Bots</button>
-                    <button class="btn btn-warning" id="showLobby">Play with Friends</button>
+                    <button class="btn btn-primary" onclick="startGame()">Play with Bots</button>
+                    <button class="btn btn-warning" onclick="showLobby()">Play with Friends</button>
                 </div>
             </div>
             
@@ -520,8 +520,8 @@
                     <p style="margin: 5px 0;">Continue and lose: <strong style="color: #ff6b6b;"><span id="continuePenalty">2</span> penalty points</strong></p>
                 </div>
                 <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
-                    <button class="btn btn-primary" id="acceptToep" style="box-shadow: 0 3px 10px rgba(76, 175, 80, 0.3);">Accept & Continue</button>
-                    <button class="btn btn-danger" id="foldToToep" style="box-shadow: 0 3px 10px rgba(244, 67, 54, 0.3);">Fold Round</button>
+                    <button class="btn btn-primary" onclick="acceptToep()" style="box-shadow: 0 3px 10px rgba(76, 175, 80, 0.3);">Accept & Continue</button>
+                    <button class="btn btn-danger" onclick="foldToToep()" style="box-shadow: 0 3px 10px rgba(244, 67, 54, 0.3);">Fold Round</button>
                 </div>
             </div>
         </div>
@@ -545,29 +545,29 @@
             </div>
 
             <div class="controls">
-                <button class="btn btn-warning" id="toepBtn">Toep! (Raise Stakes)</button>
-                <button class="btn btn-danger" id="foldBtn">Fold</button>
-                <button class="btn btn-secondary" id="vuileWasBtn" style="display: none;">Vuile Was</button>
-                <button class="btn btn-secondary" id="witteWasBtn" style="display: none;">Witte Was</button>
-                <button class="btn btn-primary" id="blindToepBtn" style="display: none;">Blind Toep Next Round!</button>
+                <button class="btn btn-warning" id="toepBtn" onclick="toep()">Toep! (Raise Stakes)</button>
+                <button class="btn btn-danger" id="foldBtn" onclick="fold()">Fold</button>
+                <button class="btn btn-secondary" id="vuileWasBtn" onclick="submitVuileWas()" style="display: none;">Vuile Was</button>
+                <button class="btn btn-secondary" id="witteWasBtn" onclick="submitWitteWas()" style="display: none;">Witte Was</button>
+                <button class="btn btn-primary" id="blindToepBtn" onclick="callBlindToep()" style="display: none;">Blind Toep Next Round!</button>
             </div>
         </div>
     </div>
 
     <!-- Game Menu -->
     <div class="game-menu" id="gameMenu" style="display: none;">
-        <button class="menu-button" id="returnToMainMenu">🏠 Main Menu</button>
-        <button class="menu-button" id="toggleActivityLog">📋 Activity Log</button>
+        <button class="menu-button" onclick="returnToMainMenu()">🏠 Main Menu</button>
+        <button class="menu-button" onclick="toggleActivityLog()">📋 Activity Log</button>
     </div>
 
     <!-- Activity Log Toggle Button -->
-    <button class="activity-toggle" id="activityToggle" title="Show/Hide Activity Log">📋</button>
+    <button class="activity-toggle" onclick="toggleActivityLog()" title="Show/Hide Activity Log">📋</button>
 
     <!-- Activity Log Panel -->
     <div class="activity-log" id="activityLog">
         <div class="activity-header">
             <h3 style="margin: 0; font-size: 1.1rem;">Game Activity</h3>
-            <button id="closeActivityLog" style="background: none; border: none; color: white; cursor: pointer;">✖</button>
+            <button onclick="toggleActivityLog()" style="background: none; border: none; color: white; cursor: pointer;">✖</button>
         </div>
         <div class="activity-messages" id="activityMessages">
             <!-- Messages will be added here dynamically -->
