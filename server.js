@@ -478,6 +478,17 @@ function processGameAction(room, playerIndex, action) {
         });
         
         checkToepResponses(gameState, room);
+      } else if (gameState.gamePhase === 'blindToepResponse' && gameState.blindToepResponses && gameState.blindToepResponses[playerIndex] === null) {
+        gameState.blindToepResponses[playerIndex] = 'accept';
+        // Stakes tracking already set to 3 for all players
+        
+        // Broadcast the acceptance immediately
+        io.to(roomCode).emit('gameStateUpdate', {
+          gameState: gameState,
+          lastAction: { type: 'acceptBlindToep', playerIndex: playerIndex }
+        });
+        
+        checkBlindToepResponses(gameState, room);
       }
       return false; // Already broadcasted
       
@@ -492,6 +503,21 @@ function processGameAction(room, playerIndex, action) {
         });
         
         checkToepResponses(gameState, room);
+      } else if (gameState.gamePhase === 'blindToepResponse' && gameState.blindToepResponses && gameState.blindToepResponses[playerIndex] === null) {
+        gameState.blindToepResponses[playerIndex] = 'fold';
+        
+        // Player gets penalty (3 points for blind toep)
+        const penaltyPoints = 3;
+        gameState.players[playerIndex].points += penaltyPoints;
+        gameState.playersInRound = gameState.playersInRound.filter(p => p !== playerIndex);
+        
+        // Broadcast the fold immediately
+        io.to(roomCode).emit('gameStateUpdate', {
+          gameState: gameState,
+          lastAction: { type: 'foldToBlindToep', playerIndex: playerIndex }
+        });
+        
+        checkBlindToepResponses(gameState, room);
       }
       return false; // Already broadcasted
       
@@ -779,39 +805,47 @@ function handleAIToepResponses(gameState, room) {
 function processServerBlindToepResponse(gameState, room) {
   // Get all players except the blind toeper
   let playersToRespond = gameState.playersInRound.filter(p => p !== gameState.lastToeper);
-  let playersFolded = [];
   
-  // Process AI responses (for now, treat all as AI with 30% fold chance)
-  playersToRespond.forEach(playerIndex => {
-    const foldChance = 0.3;
-    if (Math.random() < foldChance) {
-      playersFolded.push(playerIndex);
+  // Set up blind toep response system (similar to regular toep)
+  gameState.gamePhase = 'blindToepResponse';
+  gameState.blindToepResponses = new Array(gameState.players.length).fill(null);
+  
+  // Auto-accept for the blind toeper
+  gameState.blindToepResponses[gameState.lastToeper] = 'accept';
+  
+  // Mark all players not in round as already folded
+  for (let i = 0; i < gameState.players.length; i++) {
+    if (!gameState.playersInRound.includes(i)) {
+      gameState.blindToepResponses[i] = 'fold';
     }
-  });
-  
-  // Apply folding penalties and remove from round
-  if (playersFolded.length > 0) {
-    playersFolded.forEach(p => {
-      const penaltyPoints = gameState.playerStakesOnEntry[p]; // Should be 3
-      gameState.players[p].points += penaltyPoints;
-    });
-    
-    gameState.playersInRound = gameState.playersInRound.filter(p => !playersFolded.includes(p));
   }
   
-  gameState.pendingBlindToepResponse = false; // Reset flag
+  // Broadcast the blind toep response phase
+  io.to(room.code).emit('gameStateUpdate', {
+    gameState: gameState,
+    lastAction: { type: 'blindToepResponse', blindToeper: gameState.lastToeper }
+  });
+}
+
+function checkBlindToepResponses(gameState, room) {
+  // Check if all players have responded
+  const allResponded = gameState.blindToepResponses.every(response => response !== null);
   
-  // Check if only one player left
-  if (gameState.playersInRound.length === 1) {
-    // End round immediately
-    setTimeout(() => endRound(gameState, room), 2000);
-  } else {
-    // Continue to playing phase
+  if (allResponded) {
+    gameState.pendingBlindToepResponse = false;
     gameState.gamePhase = 'playing';
-    io.to(room.code).emit('gameStateUpdate', {
-      gameState: gameState,
-      lastAction: { type: 'blindToepProcessed', playersFolded: playersFolded }
-    });
+    
+    // Check if only one player left
+    if (gameState.playersInRound.length === 1) {
+      // End round immediately
+      setTimeout(() => endRound(gameState, room), 2000);
+    } else {
+      // Continue to playing phase
+      io.to(room.code).emit('gameStateUpdate', {
+        gameState: gameState,
+        lastAction: { type: 'blindToepResponsesComplete' }
+      });
+    }
   }
 }
 

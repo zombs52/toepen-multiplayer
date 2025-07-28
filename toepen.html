@@ -473,7 +473,7 @@
                     <button class="btn btn-danger" onclick="leaveLobby()">Leave Lobby</button>
                 </div>
                 <p id="waitingMessage" style="display: none; margin-top: 15px; font-style: italic; color: #666;">Waiting for host to start the game...</p>
-                <p style="margin-top: 15px; font-size: 0.9rem;">Share this code with friends: <strong id="currentLobbyCode"></strong></p>
+                <p style="margin-top: 15px; font-size: 0.9rem;">Share this code with friends: <strong id="currentLobbyCode"></strong> <button class="btn btn-secondary" onclick="copyLobbyCode()" style="margin-left: 10px; padding: 2px 8px; font-size: 0.8rem;">Copy</button></p>
             </div>
         </div>
         <div id="setupScreen" class="setup-screen">
@@ -507,21 +507,21 @@
         </div>
 
         <!-- Toep Decision Overlay -->
-        <div id="toepDecisionOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 20, 0.8); z-index: 1000; backdrop-filter: blur(2px);">
-            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, #1a1a2e, #16213e); border: 2px solid #0f3460; border-radius: 15px; padding: 20px; max-width: 500px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);">
-                <h2 style="color: #ffeb3b; margin-bottom: 15px;">🃏 TOEP! 🃏</h2>
-                <div id="toepMessage" style="margin: 15px 0; font-size: 1.2rem; color: white;"></div>
-                <div style="background: rgba(255, 235, 59, 0.1); border: 1px solid #ffeb3b; border-radius: 8px; padding: 10px; margin: 15px 0;">
-                    <div style="color: #ffeb3b; font-weight: bold;">New Stakes: <span id="newStakes">2</span> points</div>
+        <div id="toepDecisionOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); z-index: 1000;">
+            <div style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #1a1a2e, #16213e); border: 2px solid #ffeb3b; border-radius: 15px; padding: 20px; max-width: 450px; width: 90%; text-align: center; box-shadow: 0 5px 20px rgba(255, 235, 59, 0.3);">
+                <h2 style="color: #ffeb3b; margin-bottom: 15px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">🃏 TOEP! 🃏</h2>
+                <div id="toepMessage" style="margin: 15px 0; font-size: 1.1rem; color: white; font-weight: 500;"></div>
+                <div style="background: rgba(255, 235, 59, 0.15); border: 1px solid #ffeb3b; border-radius: 8px; padding: 12px; margin: 15px 0;">
+                    <div style="color: #ffeb3b; font-weight: bold; font-size: 1.1rem;">New Stakes: <span id="newStakes">2</span> points</div>
                 </div>
-                <div style="margin: 15px 0; font-size: 0.95rem; color: #ccc;">
-                    <p>You entered at <strong style="color: #ffeb3b;"><span id="yourEntryStakes">1</span> points</strong></p>
-                    <p>Fold now: <strong style="color: #ff6b6b;"><span id="foldPenalty">1</span> penalty points</strong></p>
-                    <p>Continue and lose: <strong style="color: #ff6b6b;"><span id="continuePenalty">2</span> penalty points</strong></p>
+                <div style="margin: 15px 0; font-size: 0.9rem; color: #ddd; line-height: 1.4;">
+                    <p style="margin: 5px 0;">You entered at <strong style="color: #ffeb3b;"><span id="yourEntryStakes">1</span> points</strong></p>
+                    <p style="margin: 5px 0;">Fold now: <strong style="color: #ff6b6b;"><span id="foldPenalty">1</span> penalty points</strong></p>
+                    <p style="margin: 5px 0;">Continue and lose: <strong style="color: #ff6b6b;"><span id="continuePenalty">2</span> penalty points</strong></p>
                 </div>
                 <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
-                    <button class="btn btn-primary" onclick="acceptToep()">Accept & Continue</button>
-                    <button class="btn btn-danger" onclick="foldToToep()">Fold Round</button>
+                    <button class="btn btn-primary" onclick="acceptToep()" style="box-shadow: 0 3px 10px rgba(76, 175, 80, 0.3);">Accept & Continue</button>
+                    <button class="btn btn-danger" onclick="foldToToep()" style="box-shadow: 0 3px 10px rgba(244, 67, 54, 0.3);">Fold Round</button>
                 </div>
             </div>
         </div>
@@ -1645,6 +1645,19 @@
                 document.getElementById('toepDecisionOverlay').style.display = 'block';
             }
 
+            showBlindToepDecisionScreen(blindToeper) {
+                const toepperName = this.players[blindToeper]?.name || 'Unknown';
+                
+                document.getElementById('toepMessage').textContent = `${toepperName} calls blind toep! Stakes set to 3 points.`;
+                document.getElementById('newStakes').textContent = '3';
+                document.getElementById('yourEntryStakes').textContent = '1';
+                document.getElementById('foldPenalty').textContent = '3';
+                document.getElementById('continuePenalty').textContent = '3';
+                
+                this.isBlindToepDecision = true; // Mark this as blind toep decision
+                document.getElementById('toepDecisionOverlay').style.display = 'block';
+            }
+
             hideToepDecisionScreen() {
                 document.getElementById('toepDecisionOverlay').style.display = 'none';
                 this.isBlindToepDecision = false; // Reset flag
@@ -1837,6 +1850,21 @@
                 case 'toepResponsesComplete':
                     game.updateGameStatus(`All players responded to toep. Continuing game.`);
                     break;
+                case 'blindToepResponse':
+                    const blindToeper = gameState.players[action.blindToeper]?.name || 'Unknown';
+                    game.updateGameStatus(`${blindToeper} called blind toep! Choose to continue for 3 points or fold.`);
+                    break;
+                case 'acceptBlindToep':
+                    const blindAccepterName = gameState.players[action.playerIndex]?.name || 'Unknown';
+                    game.updateGameStatus(`${blindAccepterName} accepts blind toep.`);
+                    break;
+                case 'foldToBlindToep':
+                    const blindFolderName = gameState.players[action.playerIndex]?.name || 'Unknown';
+                    game.updateGameStatus(`${blindFolderName} folds to blind toep.`);
+                    break;
+                case 'blindToepResponsesComplete':
+                    game.updateGameStatus(`All players responded to blind toep. Game begins with ${gameState.stakes} stakes.`);
+                    break;
                 case 'blindToepProcessed':
                     if (action.playersFolded && action.playersFolded.length > 0) {
                         const foldedNames = action.playersFolded.map(i => gameState.players[i]?.name || 'Unknown').join(', ');
@@ -1920,6 +1948,17 @@
                 game.toepResponses = null;
             }
             
+            // Handle blind toep responses (if exists)
+            if (serverState.blindToepResponses) {
+                game.blindToepResponses = [];
+                for (let i = 0; i < serverState.players.length; i++) {
+                    const serverIndex = (myServerIndex + i) % serverState.players.length;
+                    game.blindToepResponses[i] = serverState.blindToepResponses[serverIndex];
+                }
+            } else {
+                game.blindToepResponses = null;
+            }
+            
             // Handle pending laundry
             if (serverState.pendingLaundry) {
                 game.pendingLaundry = {
@@ -1936,6 +1975,13 @@
                 serverState.toepResponses[myServerIndex] === null &&
                 serverState.playersInRound.includes(myServerIndex)) {
                 game.showToepDecisionScreen();
+            } else if (serverState.gamePhase === 'blindToepResponse' && 
+                       serverState.blindToepResponses && 
+                       serverState.blindToepResponses[myServerIndex] === null &&
+                       serverState.playersInRound.includes(myServerIndex)) {
+                // Convert server blindToeper index to client perspective
+                const clientBlindToeper = (serverState.lastToeper - myServerIndex + serverState.players.length) % serverState.players.length;
+                game.showBlindToepDecisionScreen(clientBlindToeper);
             } else {
                 // Hide toep decision overlay if it's showing and no longer needed
                 if (document.getElementById('toepDecisionOverlay').style.display !== 'none') {
@@ -2040,6 +2086,27 @@
             document.getElementById('lobbyPlayers').style.display = 'none';
             document.getElementById('lobbyCode').value = '';
             backToSetup();
+        }
+
+        function copyLobbyCode() {
+            const lobbyCode = document.getElementById('currentLobbyCode').textContent;
+            if (lobbyCode) {
+                navigator.clipboard.writeText(lobbyCode).then(() => {
+                    // Provide visual feedback that the code was copied
+                    const button = event.target;
+                    const originalText = button.textContent;
+                    button.textContent = 'Copied!';
+                    button.style.background = '#4CAF50';
+                    
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.style.background = '';
+                    }, 1500);
+                }).catch(() => {
+                    // Fallback for older browsers
+                    alert('Lobby code: ' + lobbyCode);
+                });
+            }
         }
 
         function startLobbyGame() {
@@ -2152,7 +2219,12 @@
 
         function acceptToep() {
             if (isMultiplayer) {
-                socket.emit('gameAction', { type: 'acceptToep' });
+                // Check if this is a blind toep decision
+                if (game.isBlindToepDecision) {
+                    socket.emit('gameAction', { type: 'acceptToep' }); // Server handles blind vs regular toep
+                } else {
+                    socket.emit('gameAction', { type: 'acceptToep' });
+                }
                 game.hideToepDecisionScreen();
             } else {
                 game.hideToepDecisionScreen();
@@ -2208,7 +2280,12 @@
 
         function foldToToep() {
             if (isMultiplayer) {
-                socket.emit('gameAction', { type: 'foldToToep' });
+                // Check if this is a blind toep decision
+                if (game.isBlindToepDecision) {
+                    socket.emit('gameAction', { type: 'foldToToep' }); // Server handles blind vs regular toep
+                } else {
+                    socket.emit('gameAction', { type: 'foldToToep' });
+                }
                 game.hideToepDecisionScreen();
             } else {
                 game.hideToepDecisionScreen();
