@@ -437,7 +437,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-1.5 🃏</h1>
+            <h1>🃏 TOEPEN V-1.6 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -543,6 +543,7 @@
                 <button class="btn btn-danger" id="foldBtn" onclick="fold()">Fold</button>
                 <button class="btn btn-secondary" id="vuileWasBtn" onclick="submitVuileWas()" style="display: none;">Vuile Was</button>
                 <button class="btn btn-secondary" id="witteWasBtn" onclick="submitWitteWas()" style="display: none;">Witte Was</button>
+                <button class="btn btn-primary" id="blindToepBtn" onclick="callBlindToep()" style="display: none;">Blind Toep Next Round!</button>
             </div>
         </div>
     </div>
@@ -595,6 +596,10 @@
                 this.laundryPhaseTimer = null;
                 // Toep restriction - track who toep'd last to prevent consecutive toeps
                 this.lastToeper = -1; // -1 means no one has toep'd yet this round
+                // Blind toep tracking
+                this.blindToepCaller = -1; // -1 means no blind toep called
+                // Processing state to prevent rapid clicks
+                this.isProcessing = false;
             }
 
             createDeck() {
@@ -690,12 +695,22 @@
                 this.leadSuit = null;
                 this.laundryPhaseComplete = false;
                 this.firstCardPlayed = false;
+                this.isProcessing = false; // Reset processing flag for new round
                 
                 // NEW: Initialize stakes tracking - all players start at stakes=1
                 this.playerStakesOnEntry = new Array(this.players.length).fill(1);
                 
                 // Reset toep restriction for new round
                 this.lastToeper = -1;
+                
+                // If blind toep was called, adjust starting stakes
+                if (this.blindToepCaller >= 0) {
+                    this.stakes = 3;
+                    // All players start at stakes 3 for penalty calculation
+                    this.playerStakesOnEntry = new Array(this.players.length).fill(3);
+                    this.updateGameStatus(`${this.players[this.blindToepCaller].name} called Blind Toep! Stakes start at 3.`);
+                    this.blindToepCaller = -1; // Reset after using
+                }
                 
                 this.updateDisplay();
                 this.updateGameStatus(`Round ${this.round} begins! Check for laundry before playing.`);
@@ -973,6 +988,7 @@
             playCard(cardIndex) {
                 if (this.gamePhase !== 'playing' || this.currentPlayer !== 0) return;
                 if (!this.playersInRound.includes(0)) return;
+                if (this.isProcessing) return; // Prevent rapid clicks
                 
                 const card = this.players[0].hand[cardIndex];
                 if (!this.isValidPlay(card)) {
@@ -994,6 +1010,9 @@
                 
                 this.nextPlayer();
                 this.updateDisplay();
+                
+                // Set processing flag to prevent rapid clicks
+                this.isProcessing = true;
                 
                 if (this.currentTrick.length < this.playersInRound.length) {
                     setTimeout(() => this.handleAIPlay(), 1500);
@@ -1048,6 +1067,9 @@
                 if (this.currentTrick.length < this.playersInRound.length) {
                     if (this.currentPlayer !== 0) {
                         setTimeout(() => this.handleAIPlay(), 1500);
+                    } else {
+                        // It's the player's turn - reset processing flag
+                        this.isProcessing = false;
                     }
                 } else {
                     setTimeout(() => this.evaluateTrick(), 2000);
@@ -1146,6 +1168,9 @@
                         this.updateGameStatus(`${this.players[this.currentPlayer].name}'s turn to lead.`);
                         if (this.currentPlayer !== 0) {
                             setTimeout(() => this.handleAIPlay(), 1000);
+                        } else {
+                            // It's the player's turn to start new trick - reset processing flag
+                            this.isProcessing = false;
                         }
                     }, 2000);
                 }
@@ -1188,7 +1213,14 @@
                 
                 this.round++;
                 this.gamePhase = 'roundEnd';
-                setTimeout(() => this.updateDisplay(), 2000);
+                this.blindToepCaller = -1; // Reset blind toep caller
+                setTimeout(() => {
+                    this.updateDisplay();
+                    // Give AI players a chance to call blind toep
+                    this.handleAIBlindToepDecisions();
+                    // Auto-continue to next round after showing results
+                    setTimeout(() => this.nextRound(), 3000);
+                }, 2000);
             }
 
             endGame() {
@@ -1205,7 +1237,33 @@
                 this.updateDisplay();
             }
 
+            callBlindToep() {
+                if (this.gamePhase !== 'roundEnd' || this.blindToepCaller >= 0) return;
+                
+                this.blindToepCaller = 0; // Human player calls blind toep
+                this.updateGameStatus(`You called Blind Toep! Next round starts at 3 stakes.`);
+                this.updateDisplay(); // Hide the blind toep button
+            }
+
+            handleAIBlindToepDecisions() {
+                if (this.blindToepCaller >= 0) return; // Someone already called blind toep
+                
+                // Check if any AI player wants to call blind toep (10% chance)
+                for (let i = 1; i < this.players.length; i++) {
+                    if (this.players[i].points < 10 && Math.random() < 0.1) {
+                        this.blindToepCaller = i;
+                        this.updateGameStatus(`${this.players[i].name} called Blind Toep! Next round starts at 3 stakes.`);
+                        break;
+                    }
+                }
+            }
+
             nextRound() {
+                // Check if someone called blind toep for this round
+                if (this.blindToepCaller >= 0) {
+                    this.stakes = 3; // Set stakes to 3 for blind toep
+                    this.updateGameStatus(`${this.players[this.blindToepCaller].name} called Blind Toep! Stakes start at 3.`);
+                }
                 this.startRound();
             }
 
@@ -1238,9 +1296,9 @@
                                 cardEl.className = `card ${card.color}`;
                                 cardEl.textContent = `${card.rank}${card.suit}`;
                                 
-                                // Only add click handler and make playable if it's the player's turn
+                                // Only add click handler and make playable if it's the player's turn and not processing
                                 if (this.gamePhase === 'playing' && this.currentPlayer === 0 && 
-                                    this.playersInRound.includes(0) && this.isValidPlay(card)) {
+                                    this.playersInRound.includes(0) && this.isValidPlay(card) && !this.isProcessing) {
                                     cardEl.classList.add('playable');
                                     cardEl.onclick = () => {
                                         if (isMultiplayer) {
@@ -1382,6 +1440,7 @@
                 const foldBtn = document.getElementById('foldBtn');
                 const vuileWasBtn = document.getElementById('vuileWasBtn');
                 const witteWasBtn = document.getElementById('witteWasBtn');
+                const blindToepBtn = document.getElementById('blindToepBtn');
                 
                 const canToep = this.gamePhase === 'playing' && this.currentPlayer === 0 && 
                               this.playersInRound.includes(0) && this.stakes < 16 && this.lastToeper !== 0;
@@ -1392,10 +1451,14 @@
                 const canSubmitVuileWas = inLaundryPhase;
                 const canSubmitWitteWas = inLaundryPhase;
                 
+                // Blind toep button - show during roundEnd phase
+                const canBlindToep = this.gamePhase === 'roundEnd' && this.blindToepCaller === -1;
+                
                 toepBtn.style.display = canToep ? 'inline-block' : 'none';
                 foldBtn.style.display = canFold ? 'inline-block' : 'none';
                 vuileWasBtn.style.display = canSubmitVuileWas ? 'inline-block' : 'none';
                 witteWasBtn.style.display = canSubmitWitteWas ? 'inline-block' : 'none';
+                blindToepBtn.style.display = canBlindToep ? 'inline-block' : 'none';
                 
                 // Show game menu in multiplayer
                 const gameMenu = document.getElementById('gameMenu');
@@ -1885,6 +1948,14 @@
                 socket.emit('gameAction', { type: 'fold' });
             } else {
                 game.fold();
+            }
+        }
+
+        function callBlindToep() {
+            if (isMultiplayer) {
+                socket.emit('gameAction', { type: 'blindToep' });
+            } else {
+                game.callBlindToep();
             }
         }
 
