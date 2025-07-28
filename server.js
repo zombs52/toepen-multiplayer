@@ -145,7 +145,8 @@ function processLaundryInspection(gameState, inspectorIndex, room) {
       type: 'invalidClaim', 
       inspector: inspectorIndex,
       claimer: playerIndex,
-      claimType: type
+      claimType: type,
+      actualCards: cards  // Include the actual cards they were bluffing with
     };
   }
 

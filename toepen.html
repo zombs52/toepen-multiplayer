@@ -854,7 +854,10 @@
                         // Invalid laundry - bluff caught!
                         player.points += 1;
                         player.cardsVisible = true; // Play with cards face up
-                        this.updateGameStatus(`${this.players[inspectorIndex].name} catches ${player.name} bluffing! ${player.name} gets 1 penalty point and must play with cards face up.`);
+                        
+                        // Show the actual cards the player had to expose the bluff
+                        const actualCards = cards.map(card => `${card.rank}${card.suit}`).join(', ');
+                        this.updateGameStatus(`${this.players[inspectorIndex].name} catches ${player.name} bluffing! ${player.name} had: ${actualCards}. Gets 1 penalty point and must play with cards face up.`);
                     }
                 }
 
@@ -1303,7 +1306,10 @@
                                     cardEl.classList.add('playable');
                                     cardEl.onclick = () => {
                                         if (isMultiplayer) {
-                                            socket.emit('gameAction', { type: 'playCard', cardIndex: cardIndex });
+                                            if (!this.isProcessing) {
+                                                this.isProcessing = true; // Prevent multiple clicks
+                                                socket.emit('gameAction', { type: 'playCard', cardIndex: cardIndex });
+                                            }
                                         } else {
                                             this.playCard(cardIndex);
                                         }
@@ -1648,7 +1654,9 @@
                             if (result.type === 'validClaim') {
                                 game.updateGameStatus(`✅ ${claimer} had valid ${resultText}! ${inspector} gets 1 penalty point. ${claimer} gets new cards.`);
                             } else {
-                                game.updateGameStatus(`❌ ${claimer} was bluffing ${resultText}! ${claimer} gets 1 penalty point and visible cards.`);
+                                // Show the actual cards if available
+                                const cardsText = result.actualCards ? ` Had: ${result.actualCards.map(card => `${card.rank}${card.suit}`).join(', ')}.` : '';
+                                game.updateGameStatus(`❌ ${claimer} was bluffing ${resultText}!${cardsText} ${claimer} gets 1 penalty point and visible cards.`);
                             }
                         }, 1500);
                     }
@@ -1758,6 +1766,11 @@
                 if (document.getElementById('toepDecisionScreen').style.display !== 'none') {
                     game.hideToepDecisionScreen();
                 }
+            }
+            
+            // Reset processing flag when receiving server updates (allows new actions)
+            if (game.gamePhase === 'playing' && game.currentPlayer === 0) {
+                game.isProcessing = false;
             }
             
             game.updateDisplay();
