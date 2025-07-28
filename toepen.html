@@ -1943,6 +1943,12 @@
                         game.updateGameStatus(`Blind toep accepted by all players! Game begins with ${gameState.stakes} stakes.`);
                     }
                     break;
+                case 'playingForDeathToepAttempt':
+                    // Only show to the player who tried to toep (playerIndex === 0 in client perspective)
+                    if (action.playerIndex === 0 && action.message) {
+                        game.showToast(action.message);
+                    }
+                    break;
             }
         }
         

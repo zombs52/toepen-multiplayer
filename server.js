@@ -448,8 +448,18 @@ function processGameAction(room, playerIndex, action) {
       if (gameState.currentPlayer === playerIndex && gameState.gamePhase === 'playing' && gameState.lastToeper !== playerIndex) {
         // Check if player is playing for death (would be eliminated if they lose)
         if (isPlayingForDeath(gameState, playerIndex)) {
-          // Send error message to the player who tried to toep
-          io.to(room.players.find(p => p.index === playerIndex)?.id).emit('error', "You can't toep when playing for death! You're already risking elimination.");
+          // Send subtle notification to the player who tried to toep
+          const playerSocket = room.players.find(p => p.index === playerIndex)?.id;
+          if (playerSocket) {
+            io.to(playerSocket).emit('gameStateUpdate', {
+              gameState: gameState,
+              lastAction: { 
+                type: 'playingForDeathToepAttempt', 
+                playerIndex: playerIndex,
+                message: "You're already playing for your death, you can't toep"
+              }
+            });
+          }
           return false;
         }
         
