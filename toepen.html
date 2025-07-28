@@ -1102,14 +1102,15 @@
                 }
                 
                 this.nextPlayer();
-                this.updateDisplay();
                 
-                // Set processing flag to prevent rapid clicks
+                // Set processing flag BEFORE updateDisplay to prevent rapid clicks
                 this.isProcessing = true;
+                this.updateDisplay();
                 
                 if (this.currentTrick.length < this.playersInRound.length) {
                     setTimeout(() => this.handleAIPlay(), 1500);
                 } else {
+                    // Trick is complete - keep processing flag true until next trick starts
                     setTimeout(() => this.evaluateTrick(), 2000);
                 }
             }
@@ -1719,7 +1720,18 @@
                 
                 // Handle game event messages
                 if (data.lastAction) {
-                    handleGameEvent(data.lastAction, data.gameState);
+                    // Convert action player indices from server perspective to client perspective
+                    const convertedAction = { ...data.lastAction };
+                    const myServerIndex = data.gameState.players.findIndex(p => p.id === socket.id);
+                    
+                    if (convertedAction.claimerIndex !== undefined) {
+                        convertedAction.claimerIndex = (convertedAction.claimerIndex - myServerIndex + data.gameState.players.length) % data.gameState.players.length;
+                    }
+                    if (convertedAction.playerIndex !== undefined) {
+                        convertedAction.playerIndex = (convertedAction.playerIndex - myServerIndex + data.gameState.players.length) % data.gameState.players.length;
+                    }
+                    
+                    handleGameEvent(convertedAction, data.gameState);
                 }
             }
         });
@@ -1932,7 +1944,9 @@
             }
             
             // Reset processing flag when receiving server updates (allows new actions)
-            if (game.gamePhase === 'playing' && game.currentPlayer === 0) {
+            // But only if the trick isn't complete (to prevent multiple card plays on last card)
+            if (game.gamePhase === 'playing' && game.currentPlayer === 0 && 
+                game.currentTrick.length < game.playersInRound.length) {
                 game.isProcessing = false;
             }
             
