@@ -2,208 +2,31 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
 
 const app = express();
 const server = http.createServer(app);
-
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "cdnjs.cloudflare.com"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      connectSrc: ["'self'", "ws:", "wss:"]
-    }
-  }
-}));
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use(limiter);
-
-// Socket.io rate limiting
-const socketConnections = new Map();
-const SOCKET_RATE_LIMIT = 50; // messages per minute
-const SOCKET_WINDOW = 60000; // 1 minute
-
 const io = socketIo(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' ? 
-      ['https://toepen-multiplayer-production.up.railway.app'] : 
-      ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: "*",
     methods: ["GET", "POST"]
-  },
-  transports: ['websocket', 'polling']
-});
-
-// Serve static files with security headers
-app.use(express.static(path.join(__dirname), {
-  setHeaders: (res, path) => {
-    if (path.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
-    }
   }
-}));
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Express error:', err);
-  res.status(500).json({ error: 'Internal server error' });
 });
 
-// Serve the refactored game at the root URL
+// Serve static files (your HTML game)
+app.use(express.static(path.join(__dirname)));
+
+// Serve the game at the root URL
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'toepen_refactored.html'));
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', rooms: gameRooms.size, timestamp: new Date().toISOString() });
+  res.sendFile(path.join(__dirname, 'toepen.html'));
 });
 
 // Game rooms storage
 const gameRooms = new Map();
 
-// Constants for validation
-const VALIDATION = {
-  ROOM_CODE_LENGTH: 6,
-  ROOM_CODE_PATTERN: /^[A-Z0-9]{6}$/,
-  PLAYER_NAME_MIN_LENGTH: 1,
-  PLAYER_NAME_MAX_LENGTH: 20,
-  PLAYER_NAME_PATTERN: /^[a-zA-Z0-9\s]+$/,
-  MAX_PLAYERS_PER_ROOM: 4,
-  MAX_ROOMS: 1000
-};
-
-// Error messages
-const ERROR_MESSAGES = {
-  INVALID_ROOM_CODE: 'Room code must be 6 characters long and contain only letters and numbers',
-  INVALID_PLAYER_NAME: 'Player name must be 1-20 characters and contain only letters, numbers, and spaces',
-  ROOM_NOT_FOUND: 'Room not found. Please check the room code.',
-  ROOM_FULL: 'Room is full. Maximum 4 players allowed.',
-  GAME_ALREADY_STARTED: 'Cannot join - game has already started',
-  RATE_LIMIT_EXCEEDED: 'Too many actions. Please slow down.',
-  SERVER_FULL: 'Server is at capacity. Please try again later.',
-  INVALID_ACTION: 'Invalid action type or parameters'
-};
-
-// Generate unique room codes with collision detection
+// Generate unique room codes
 function generateRoomCode() {
-  let attempts = 0;
-  let code;
-  
-  do {
-    code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    attempts++;
-    
-    if (attempts > 100) {
-      throw new Error('Unable to generate unique room code');
-    }
-  } while (gameRooms.has(code));
-  
-  return code;
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
-
-// Validation functions
-function validateRoomCode(roomCode) {
-  if (!roomCode || typeof roomCode !== 'string') {
-    return { valid: false, error: ERROR_MESSAGES.INVALID_ROOM_CODE };
-  }
-  
-  const trimmed = roomCode.trim().toUpperCase();
-  if (trimmed.length !== VALIDATION.ROOM_CODE_LENGTH || 
-      !VALIDATION.ROOM_CODE_PATTERN.test(trimmed)) {
-    return { valid: false, error: ERROR_MESSAGES.INVALID_ROOM_CODE };
-  }
-  
-  return { valid: true, code: trimmed };
-}
-
-function validatePlayerName(playerName) {
-  if (!playerName || typeof playerName !== 'string') {
-    return { valid: false, error: ERROR_MESSAGES.INVALID_PLAYER_NAME };
-  }
-  
-  const trimmed = playerName.trim();
-  if (trimmed.length < VALIDATION.PLAYER_NAME_MIN_LENGTH || 
-      trimmed.length > VALIDATION.PLAYER_NAME_MAX_LENGTH ||
-      !VALIDATION.PLAYER_NAME_PATTERN.test(trimmed)) {
-    return { valid: false, error: ERROR_MESSAGES.INVALID_PLAYER_NAME };
-  }
-  
-  return { valid: true, name: trimmed };
-}
-
-// Rate limiting for socket connections
-function checkSocketRateLimit(socketId) {
-  const now = Date.now();
-  const connection = socketConnections.get(socketId);
-  
-  if (!connection) {
-    socketConnections.set(socketId, {
-      count: 1,
-      resetTime: now + SOCKET_WINDOW
-    });
-    return true;
-  }
-  
-  if (now > connection.resetTime) {
-    connection.count = 1;
-    connection.resetTime = now + SOCKET_WINDOW;
-    return true;
-  }
-  
-  if (connection.count >= SOCKET_RATE_LIMIT) {
-    return false;
-  }
-  
-  connection.count++;
-  return true;
-}
-
-// Sanitize game state before sending to clients
-function sanitizeGameState(gameState, playerIndex = -1) {
-  const sanitized = { ...gameState };
-  
-  // Hide other players' cards
-  if (sanitized.players) {
-    sanitized.players = sanitized.players.map((player, index) => {
-      if (index === playerIndex) {
-        return player; // Show full hand to the player
-      }
-      
-      return {
-        ...player,
-        hand: player.hand ? player.hand.map(() => ({ hidden: true })) : []
-      };
-    });
-  }
-  
-  return sanitized;
-}
-
-// Clean up inactive rooms
-function cleanupInactiveRooms() {
-  const now = Date.now();
-  const ROOM_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-  
-  for (const [roomCode, room] of gameRooms.entries()) {
-    if (now - room.lastActivity > ROOM_TIMEOUT) {
-      gameRooms.delete(roomCode);
-      console.log(`Cleaned up inactive room: ${roomCode}`);
-    }
-  }
-}
-
-// Run cleanup every 5 minutes
-setInterval(cleanupInactiveRooms, 5 * 60 * 1000);
 
 // Game logic functions
 function createDeckAndDeal(gameState) {
@@ -352,113 +175,51 @@ function processLaundryInspection(gameState, inspectorIndex, room) {
 // Socket connection handling
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
-  
-  // Middleware for rate limiting and validation
-  const rateLimitMiddleware = (eventName, handler) => {
-    return (data) => {
-      try {
-        // Check rate limit
-        if (!checkSocketRateLimit(socket.id)) {
-          socket.emit('error', { message: ERROR_MESSAGES.RATE_LIMIT_EXCEEDED });
-          return;
-        }
-        
-        // Call the handler
-        handler(data);
-      } catch (error) {
-        console.error(`Error in ${eventName}:`, error);
-        socket.emit('error', { message: 'An unexpected error occurred' });
-      }
+
+  // Create or join a room
+  socket.on('createRoom', (playerName) => {
+    const roomCode = generateRoomCode();
+    const room = {
+      code: roomCode,
+      host: socket.id,
+      players: [{
+        id: socket.id,
+        name: playerName,
+        isHost: true
+      }],
+      gameState: null,
+      maxPlayers: 4,
+      isGameStarted: false
     };
-  };
+    
+    gameRooms.set(roomCode, room);
+    socket.join(roomCode);
+    socket.roomCode = roomCode;
+    
+    socket.emit('roomCreated', {
+      roomCode: roomCode,
+      players: room.players
+    });
+    
+    console.log(`Room ${roomCode} created by ${playerName}`);
+  });
 
-  // Create room with validation
-  socket.on('createRoom', rateLimitMiddleware('createRoom', (data) => {
-    // Check server capacity
-    if (gameRooms.size >= VALIDATION.MAX_ROOMS) {
-      socket.emit('error', { message: ERROR_MESSAGES.SERVER_FULL });
-      return;
-    }
-    
-    // Validate player name
-    const nameValidation = validatePlayerName(data.playerName);
-    if (!nameValidation.valid) {
-      socket.emit('error', { message: nameValidation.error });
-      return;
-    }
-    
-    try {
-      const roomCode = generateRoomCode();
-      const room = {
-        code: roomCode,
-        host: socket.id,
-        players: [{
-          id: socket.id,
-          name: nameValidation.name,
-          isHost: true,
-          isBot: false
-        }],
-        gameState: null,
-        maxPlayers: VALIDATION.MAX_PLAYERS_PER_ROOM,
-        isGameStarted: false,
-        lastActivity: Date.now()
-      };
-      
-      gameRooms.set(roomCode, room);
-      socket.join(roomCode);
-      socket.roomCode = roomCode;
-      socket.playerIndex = 0;
-      
-      socket.emit('roomCreated', {
-        roomCode: roomCode,
-        players: room.players,
-        playerIndex: 0
-      });
-      
-      console.log(`Room ${roomCode} created by ${nameValidation.name}`);
-    } catch (error) {
-      console.error('Error creating room:', error);
-      socket.emit('error', { message: 'Failed to create room. Please try again.' });
-    }
-  }));
-
-  // Join room with validation
-  socket.on('joinRoom', rateLimitMiddleware('joinRoom', (data) => {
-    // Validate room code
-    const codeValidation = validateRoomCode(data.roomCode);
-    if (!codeValidation.valid) {
-      socket.emit('error', { message: codeValidation.error });
-      return;
-    }
-    
-    // Validate player name
-    const nameValidation = validatePlayerName(data.playerName);
-    if (!nameValidation.valid) {
-      socket.emit('error', { message: nameValidation.error });
-      return;
-    }
-    
-    const room = gameRooms.get(codeValidation.code);
+  socket.on('joinRoom', (data) => {
+    const { roomCode, playerName } = data;
+    const room = gameRooms.get(roomCode);
     
     if (!room) {
-      socket.emit('error', { message: ERROR_MESSAGES.ROOM_NOT_FOUND });
+      socket.emit('joinError', 'Room not found');
       return;
     }
     
     if (room.players.length >= room.maxPlayers) {
-      socket.emit('error', { message: ERROR_MESSAGES.ROOM_FULL });
+      socket.emit('joinError', 'Room is full');
       return;
     }
     
     if (room.isGameStarted) {
-      socket.emit('error', { message: ERROR_MESSAGES.GAME_ALREADY_STARTED });
-      return;
-    }
-    
-    // Check for duplicate names
-    const nameExists = room.players.some(p => p.name.toLowerCase() === nameValidation.name.toLowerCase());
-    if (nameExists) {
-      socket.emit('error', { message: 'A player with this name already exists in the room' });
+      socket.emit('joinError', 'Game already started');
       return;
     }
     
