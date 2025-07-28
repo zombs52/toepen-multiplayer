@@ -437,6 +437,36 @@
             0%, 100% { background-color: transparent; }
             50% { background-color: rgba(255, 107, 107, 0.3); }
         }
+
+        /* Toast notification styles */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            transform: translateX(400px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .toast.error {
+            background: #f44336;
+        }
+
+        .toast.info {
+            background: #2196F3;
+        }
     </style>
 </head>
 <body>
@@ -2088,23 +2118,52 @@
             backToSetup();
         }
 
+        // Toast notification system
+        function showToast(message, type = 'success') {
+            // Remove any existing toast
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+            
+            // Create new toast
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            
+            // Add to page
+            document.body.appendChild(toast);
+            
+            // Show with animation
+            setTimeout(() => toast.classList.add('show'), 100);
+            
+            // Hide and remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
         function copyLobbyCode() {
             const lobbyCode = document.getElementById('currentLobbyCode').textContent;
             if (lobbyCode) {
                 navigator.clipboard.writeText(lobbyCode).then(() => {
-                    // Provide visual feedback that the code was copied
-                    const button = event.target;
-                    const originalText = button.textContent;
-                    button.textContent = 'Copied!';
-                    button.style.background = '#4CAF50';
-                    
-                    setTimeout(() => {
-                        button.textContent = originalText;
-                        button.style.background = '';
-                    }, 1500);
+                    showToast('Code copied!');
                 }).catch(() => {
-                    // Fallback for older browsers
-                    alert('Lobby code: ' + lobbyCode);
+                    // Fallback: try to select text and copy, or show code in toast
+                    try {
+                        // Create temporary input to select text
+                        const temp = document.createElement('input');
+                        temp.value = lobbyCode;
+                        document.body.appendChild(temp);
+                        temp.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(temp);
+                        showToast('Code copied!');
+                    } catch (err) {
+                        // Last resort: show the code in a toast
+                        showToast(`Lobby code: ${lobbyCode}`, 'info');
+                    }
                 });
             }
         }
