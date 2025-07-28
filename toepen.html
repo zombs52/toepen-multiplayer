@@ -1172,10 +1172,11 @@
                             // It's the player's turn to start new trick - reset processing flag
                             this.isProcessing = false;
                         }
+                        this.updateDisplay(); // Update display after setting current player and processing flag
                     }, 2000);
                 }
                 
-                this.updateDisplay();
+                // Don't call updateDisplay here - it's called inside the setTimeout
             }
 
             endRound() {
