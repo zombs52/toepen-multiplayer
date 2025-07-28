@@ -392,6 +392,13 @@ io.on('connection', (socket) => {
   });
 });
 
+// Check if a player would be eliminated if they lose this round (playing for death)
+function isPlayingForDeath(gameState, playerIndex) {
+  const player = gameState.players[playerIndex];
+  const playerEntryStakes = gameState.playerStakesOnEntry[playerIndex];
+  return (player.points + playerEntryStakes) >= 10;
+}
+
 // Game action processor - returns true if main handler should broadcast, false if already handled
 function processGameAction(room, playerIndex, action) {
   const gameState = room.gameState;
@@ -439,6 +446,13 @@ function processGameAction(room, playerIndex, action) {
       
     case 'toep':
       if (gameState.currentPlayer === playerIndex && gameState.gamePhase === 'playing' && gameState.lastToeper !== playerIndex) {
+        // Check if player is playing for death (would be eliminated if they lose)
+        if (isPlayingForDeath(gameState, playerIndex)) {
+          // Send error message to the player who tried to toep
+          io.to(room.players.find(p => p.index === playerIndex)?.id).emit('error', "You can't toep when playing for death! You're already risking elimination.");
+          return false;
+        }
+        
         gameState.stakes += 1;
         gameState.lastToeper = playerIndex;
         gameState.gamePhase = 'toepResponse';
@@ -494,6 +508,22 @@ function processGameAction(room, playerIndex, action) {
       
     case 'foldToToep':
       if (gameState.gamePhase === 'toepResponse' && gameState.toepResponses && gameState.toepResponses[playerIndex] === null) {
+        // Check if player is playing for death - they cannot fold, must accept
+        if (isPlayingForDeath(gameState, playerIndex)) {
+          // Force accept instead of fold
+          gameState.toepResponses[playerIndex] = 'accept';
+          gameState.playerStakesOnEntry[playerIndex] = gameState.stakes;
+          
+          // Send message explaining automatic acceptance
+          io.to(room.players.find(p => p.index === playerIndex)?.id).emit('gameStateUpdate', {
+            gameState: gameState,
+            lastAction: { type: 'forcedAcceptToep', playerIndex: playerIndex, message: 'You are playing for death - automatically accept toep!' }
+          });
+          
+          checkToepResponses(gameState, room);
+          return false; // Already broadcasted
+        }
+        
         gameState.toepResponses[playerIndex] = 'fold';
         
         // Broadcast the fold immediately
@@ -655,6 +685,11 @@ function evaluateTrick(gameState, room) {
 }
 
 function endRound(gameState, room) {
+  console.log('=== END ROUND DEBUG ===');
+  console.log('Players in round:', gameState.playersInRound.map(i => `${i}:${gameState.players[i].name}`));
+  console.log('Trick wins:', gameState.roundTrickWins.map((wins, i) => `${i}:${wins}`));
+  console.log('Stakes on entry:', gameState.playerStakesOnEntry.map((stakes, i) => `${i}:${stakes}`));
+  
   // Find winner (most tricks)
   let maxTricks = Math.max(...gameState.roundTrickWins);
   let winners = [];
@@ -664,10 +699,17 @@ function endRound(gameState, room) {
     }
   });
   
+  console.log('Max tricks:', maxTricks);
+  console.log('Winners:', winners.map(i => `${i}:${gameState.players[i].name}`));
+  
   // Award penalty points to non-winners (based on their entry stakes)
   gameState.playersInRound.forEach(playerIndex => {
     if (!winners.includes(playerIndex)) {
-      gameState.players[playerIndex].points += gameState.playerStakesOnEntry[playerIndex];
+      const penaltyPoints = gameState.playerStakesOnEntry[playerIndex];
+      console.log(`Giving ${penaltyPoints} penalty points to ${playerIndex}:${gameState.players[playerIndex].name}`);
+      gameState.players[playerIndex].points += penaltyPoints;
+    } else {
+      console.log(`${playerIndex}:${gameState.players[playerIndex].name} is winner, no penalty`);
     }
   });
   
@@ -748,6 +790,24 @@ function endRound(gameState, room) {
 
 
 function checkToepResponses(gameState, room) {
+  // Auto-accept for players playing for death who haven't responded yet
+  gameState.playersInRound.forEach(playerIndex => {
+    if (gameState.toepResponses[playerIndex] === null && isPlayingForDeath(gameState, playerIndex)) {
+      gameState.toepResponses[playerIndex] = 'accept';
+      gameState.playerStakesOnEntry[playerIndex] = gameState.stakes;
+      
+      // Send message to all players about the auto-acceptance
+      io.to(room.code).emit('gameStateUpdate', {
+        gameState: gameState,
+        lastAction: { 
+          type: 'autoAcceptToep', 
+          playerIndex: playerIndex, 
+          message: `${gameState.players[playerIndex].name} is playing for death - automatically accepts toep!` 
+        }
+      });
+    }
+  });
+
   // Check if all active players have responded
   const activePlayerResponses = gameState.playersInRound
     .map(playerIndex => gameState.toepResponses[playerIndex])
