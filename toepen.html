@@ -506,29 +506,20 @@
             </div>
         </div>
 
-        <div id="toepDecisionScreen" class="setup-screen" style="display: none;">
-            <h2>🃏 TOEP! 🃏</h2>
-            <div id="toepMessage" style="margin: 20px 0; font-size: 1.3rem;"></div>
-            <div class="stakes-indicator" style="margin: 20px 0;">
-                New Stakes: <span id="newStakes">2</span> points
-            </div>
-            <div style="margin: 20px 0; font-size: 1.1rem;">
-                <p>You entered this round at <strong><span id="yourEntryStakes">1</span> points</strong></p>
-                <p>If you fold now, you'll get <strong><span id="foldPenalty">1</span> penalty points</strong></p>
-                <p>If you continue and lose the round, you'll get <strong><span id="continuePenalty">2</span> penalty points</strong></p>
-            </div>
-            
-            <div style="margin: 20px 0;">
-                <h3 style="margin-bottom: 10px; color: #ffeb3b;">Your Cards:</h3>
-                <div id="toepDecisionCards" style="display: flex; gap: 5px; justify-content: center; flex-wrap: wrap;"></div>
-            </div>
-            
-            <div style="margin: 20px 0;">
-                <h3 style="margin-bottom: 10px; color: #ffeb3b;">Current Trick:</h3>
-                <div id="toepDecisionTrick" style="display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; min-height: 60px; align-items: center;"></div>
-            </div>
-            <div class="setup-controls">
-                <div style="display: flex; gap: 15px; justify-content: center;">
+        <!-- Toep Decision Overlay -->
+        <div id="toepDecisionOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 20, 0.8); z-index: 1000; backdrop-filter: blur(2px);">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, #1a1a2e, #16213e); border: 2px solid #0f3460; border-radius: 15px; padding: 20px; max-width: 500px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);">
+                <h2 style="color: #ffeb3b; margin-bottom: 15px;">🃏 TOEP! 🃏</h2>
+                <div id="toepMessage" style="margin: 15px 0; font-size: 1.2rem; color: white;"></div>
+                <div style="background: rgba(255, 235, 59, 0.1); border: 1px solid #ffeb3b; border-radius: 8px; padding: 10px; margin: 15px 0;">
+                    <div style="color: #ffeb3b; font-weight: bold;">New Stakes: <span id="newStakes">2</span> points</div>
+                </div>
+                <div style="margin: 15px 0; font-size: 0.95rem; color: #ccc;">
+                    <p>You entered at <strong style="color: #ffeb3b;"><span id="yourEntryStakes">1</span> points</strong></p>
+                    <p>Fold now: <strong style="color: #ff6b6b;"><span id="foldPenalty">1</span> penalty points</strong></p>
+                    <p>Continue and lose: <strong style="color: #ff6b6b;"><span id="continuePenalty">2</span> penalty points</strong></p>
+                </div>
+                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
                     <button class="btn btn-primary" onclick="acceptToep()">Accept & Continue</button>
                     <button class="btn btn-danger" onclick="foldToToep()">Fold Round</button>
                 </div>
@@ -614,6 +605,7 @@
                 // Blind toep tracking
                 this.blindToepCaller = -1; // -1 means no blind toep called
                 this.pendingBlindToepResponse = false; // Flag to track if blind toep needs processing
+                this.isBlindToepDecision = false; // Flag to distinguish blind toep vs regular toep decision
                 // Processing state to prevent rapid clicks
                 this.isProcessing = false;
             }
@@ -996,8 +988,15 @@
             handleBlindToepResponse() {
                 // Get all players except the blind toeper
                 let playersToRespond = this.playersInRound.filter(p => p !== this.lastToeper);
-                let playersFolded = [];
                 
+                // Check if human player (index 0) needs to decide
+                if (playersToRespond.includes(0)) {
+                    this.showBlindToepDecisionScreen();
+                    return; // Wait for human decision
+                }
+                
+                // Handle AI-only responses
+                let playersFolded = [];
                 playersToRespond.forEach(playerIndex => {
                     // AI decision: 30% chance to fold to blind toep (3 stakes)
                     const foldChance = 0.3;
@@ -1006,6 +1005,10 @@
                     }
                 });
                 
+                this.processBlindToepResponses(playersFolded);
+            }
+
+            processBlindToepResponses(playersFolded) {
                 if (playersFolded.length > 0) {
                     let foldMessages = [];
                     playersFolded.forEach(p => {
@@ -1033,6 +1036,19 @@
                 
                 this.pendingBlindToepResponse = false; // Reset flag
                 this.updateDisplay();
+            }
+
+            showBlindToepDecisionScreen() {
+                const blindToeper = this.players[this.lastToeper].name;
+                
+                document.getElementById('toepMessage').textContent = `${blindToeper} called Blind Toep! Stakes are now 3 points.`;
+                document.getElementById('newStakes').textContent = '3';
+                document.getElementById('yourEntryStakes').textContent = '3';
+                document.getElementById('foldPenalty').textContent = '3';
+                document.getElementById('continuePenalty').textContent = '3';
+                
+                this.isBlindToepDecision = true; // Mark this as blind toep decision
+                document.getElementById('toepDecisionOverlay').style.display = 'block';
             }
 
             fold() {
@@ -1432,10 +1448,21 @@
                                         if (isMultiplayer) {
                                             if (!this.isProcessing) {
                                                 this.isProcessing = true; // Prevent multiple clicks
+                                                // Immediately disable all card clicks
+                                                this.players[0].hand.forEach((_, idx) => {
+                                                    const cardToDisable = document.querySelector(`#yourCards .card:nth-child(${idx + 1})`);
+                                                    if (cardToDisable) {
+                                                        cardToDisable.onclick = null;
+                                                        cardToDisable.style.cursor = 'not-allowed';
+                                                        cardToDisable.style.opacity = '0.6';
+                                                    }
+                                                });
                                                 socket.emit('gameAction', { type: 'playCard', cardIndex: cardIndex });
                                             }
                                         } else {
-                                            this.playCard(cardIndex);
+                                            if (!this.isProcessing) {
+                                                this.playCard(cardIndex);
+                                            }
                                         }
                                     };
                                     cardEl.style.cursor = 'pointer';
@@ -1613,44 +1640,13 @@
                 document.getElementById('foldPenalty').textContent = yourEntryStakes;
                 document.getElementById('continuePenalty').textContent = this.stakes;
                 
-                // Show player's current cards
-                const cardsEl = document.getElementById('toepDecisionCards');
-                cardsEl.innerHTML = '';
-                this.players[0].hand.forEach(card => {
-                    const cardEl = document.createElement('div');
-                    cardEl.className = `card ${card.color}`;
-                    cardEl.textContent = `${card.rank}${card.suit}`;
-                    cardEl.style.fontSize = '0.9rem';
-                    cardsEl.appendChild(cardEl);
-                });
-                
-                // Show current trick
-                const trickEl = document.getElementById('toepDecisionTrick');
-                trickEl.innerHTML = '';
-                if (this.currentTrick.length === 0) {
-                    const emptyMsg = document.createElement('div');
-                    emptyMsg.textContent = 'No cards played yet this trick';
-                    emptyMsg.style.color = '#888';
-                    emptyMsg.style.fontStyle = 'italic';
-                    trickEl.appendChild(emptyMsg);
-                } else {
-                    this.currentTrick.forEach(play => {
-                        const cardEl = document.createElement('div');
-                        cardEl.className = `card ${play.card.color}`;
-                        cardEl.textContent = `${play.card.rank}${play.card.suit}`;
-                        cardEl.style.fontSize = '0.9rem';
-                        cardEl.title = `Played by ${this.players[play.player].name}`;
-                        trickEl.appendChild(cardEl);
-                    });
-                }
-                
-                document.getElementById('gameScreen').style.display = 'none';
-                document.getElementById('toepDecisionScreen').style.display = 'block';
+                this.isBlindToepDecision = false; // Mark this as regular toep decision
+                document.getElementById('toepDecisionOverlay').style.display = 'block';
             }
 
             hideToepDecisionScreen() {
-                document.getElementById('toepDecisionScreen').style.display = 'none';
-                document.getElementById('gameScreen').style.display = 'block';
+                document.getElementById('toepDecisionOverlay').style.display = 'none';
+                this.isBlindToepDecision = false; // Reset flag
             }
         }
 
@@ -1929,8 +1925,8 @@
                 serverState.playersInRound.includes(myServerIndex)) {
                 game.showToepDecisionScreen();
             } else {
-                // Hide toep decision screen if it's showing and no longer needed
-                if (document.getElementById('toepDecisionScreen').style.display !== 'none') {
+                // Hide toep decision overlay if it's showing and no longer needed
+                if (document.getElementById('toepDecisionOverlay').style.display !== 'none') {
                     game.hideToepDecisionScreen();
                 }
             }
