@@ -570,6 +570,15 @@ function processGameAction(room, playerIndex, action) {
       }
       return false; // Already broadcasted or invalid
       
+    case 'blindToep':
+      // Only allow during roundEnd phase
+      if (gameState.gamePhase === 'roundEnd' && !gameState.blindToepCaller) {
+        gameState.blindToepCaller = playerIndex;
+        // Blind toep will be processed when the next round starts
+        return true;
+      }
+      return false;
+      
     default:
       return true;
   }
@@ -677,14 +686,28 @@ function endRound(gameState, room) {
       // Create new deck and deal cards
       createDeckAndDeal(gameState);
       
+      // Process blind toep if someone called it
+      if (gameState.blindToepCaller !== undefined && gameState.blindToepCaller >= 0) {
+        gameState.stakes = 3;
+        gameState.playerStakesOnEntry = new Array(gameState.players.length).fill(3);
+        gameState.lastToeper = gameState.blindToepCaller;
+        gameState.pendingBlindToepResponse = true;
+        gameState.blindToepCaller = -1; // Reset after using
+      }
+      
       // Start new laundry timer
       setTimeout(() => {
         if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
-          gameState.gamePhase = 'playing';
-          io.to(room.code).emit('gameStateUpdate', {
-            gameState: gameState,
-            lastAction: { type: 'laundryPhaseEnd' }
-          });
+          // Check if there's a pending blind toep response
+          if (gameState.pendingBlindToepResponse) {
+            processServerBlindToepResponse(gameState, room);
+          } else {
+            gameState.gamePhase = 'playing';
+            io.to(room.code).emit('gameStateUpdate', {
+              gameState: gameState,
+              lastAction: { type: 'laundryPhaseEnd' }
+            });
+          }
         }
       }, 10000);
       
@@ -750,6 +773,45 @@ function handleAIToepResponses(gameState, room) {
       }
     });
     checkToepResponses(gameState, room);
+  }
+}
+
+function processServerBlindToepResponse(gameState, room) {
+  // Get all players except the blind toeper
+  let playersToRespond = gameState.playersInRound.filter(p => p !== gameState.lastToeper);
+  let playersFolded = [];
+  
+  // Process AI responses (for now, treat all as AI with 30% fold chance)
+  playersToRespond.forEach(playerIndex => {
+    const foldChance = 0.3;
+    if (Math.random() < foldChance) {
+      playersFolded.push(playerIndex);
+    }
+  });
+  
+  // Apply folding penalties and remove from round
+  if (playersFolded.length > 0) {
+    playersFolded.forEach(p => {
+      const penaltyPoints = gameState.playerStakesOnEntry[p]; // Should be 3
+      gameState.players[p].points += penaltyPoints;
+    });
+    
+    gameState.playersInRound = gameState.playersInRound.filter(p => !playersFolded.includes(p));
+  }
+  
+  gameState.pendingBlindToepResponse = false; // Reset flag
+  
+  // Check if only one player left
+  if (gameState.playersInRound.length === 1) {
+    // End round immediately
+    setTimeout(() => endRound(gameState, room), 2000);
+  } else {
+    // Continue to playing phase
+    gameState.gamePhase = 'playing';
+    io.to(room.code).emit('gameStateUpdate', {
+      gameState: gameState,
+      lastAction: { type: 'blindToepProcessed', playersFolded: playersFolded }
+    });
   }
 }
 

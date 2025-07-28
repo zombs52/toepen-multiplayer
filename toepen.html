@@ -517,6 +517,16 @@
                 <p>If you fold now, you'll get <strong><span id="foldPenalty">1</span> penalty points</strong></p>
                 <p>If you continue and lose the round, you'll get <strong><span id="continuePenalty">2</span> penalty points</strong></p>
             </div>
+            
+            <div style="margin: 20px 0;">
+                <h3 style="margin-bottom: 10px; color: #ffeb3b;">Your Cards:</h3>
+                <div id="toepDecisionCards" style="display: flex; gap: 5px; justify-content: center; flex-wrap: wrap;"></div>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <h3 style="margin-bottom: 10px; color: #ffeb3b;">Current Trick:</h3>
+                <div id="toepDecisionTrick" style="display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; min-height: 60px; align-items: center;"></div>
+            </div>
             <div class="setup-controls">
                 <div style="display: flex; gap: 15px; justify-content: center;">
                     <button class="btn btn-primary" onclick="acceptToep()">Accept & Continue</button>
@@ -603,6 +613,7 @@
                 this.lastToeper = -1; // -1 means no one has toep'd yet this round
                 // Blind toep tracking
                 this.blindToepCaller = -1; // -1 means no blind toep called
+                this.pendingBlindToepResponse = false; // Flag to track if blind toep needs processing
                 // Processing state to prevent rapid clicks
                 this.isProcessing = false;
             }
@@ -713,7 +724,11 @@
                     this.stakes = 3;
                     // All players start at stakes 3 for penalty calculation
                     this.playerStakesOnEntry = new Array(this.players.length).fill(3);
-                    this.updateGameStatus(`${this.players[this.blindToepCaller].name} called Blind Toep! Stakes start at 3.`);
+                    this.updateGameStatus(`${this.players[this.blindToepCaller].name} called Blind Toep! Stakes start at 3. Others must accept or fold.`);
+                    // Mark blind toeper as last toeper (can't toep again until someone else toeps)
+                    this.lastToeper = this.blindToepCaller;
+                    // Set flag to trigger fold/continue decisions after cards are shown
+                    this.pendingBlindToepResponse = true;
                     this.blindToepCaller = -1; // Reset after using
                 }
                 
@@ -893,6 +908,14 @@
                 
                 this.gamePhase = 'playing';
                 this.laundryPhaseComplete = true;
+                
+                // Check if there's a pending blind toep response
+                if (this.pendingBlindToepResponse) {
+                    this.updateGameStatus(`Processing blind toep responses...`);
+                    setTimeout(() => this.handleBlindToepResponse(), 1000);
+                    return;
+                }
+                
                 this.updateDisplay();
                 this.updateGameStatus(`Round ${this.round} - ${this.players[this.currentPlayer].name}'s turn.`);
                 
@@ -967,6 +990,48 @@
                     }
                 }, 1500);
                 
+                this.updateDisplay();
+            }
+
+            handleBlindToepResponse() {
+                // Get all players except the blind toeper
+                let playersToRespond = this.playersInRound.filter(p => p !== this.lastToeper);
+                let playersFolded = [];
+                
+                playersToRespond.forEach(playerIndex => {
+                    // AI decision: 30% chance to fold to blind toep (3 stakes)
+                    const foldChance = 0.3;
+                    if (Math.random() < foldChance) {
+                        playersFolded.push(playerIndex);
+                    }
+                });
+                
+                if (playersFolded.length > 0) {
+                    let foldMessages = [];
+                    playersFolded.forEach(p => {
+                        const penaltyPoints = this.playerStakesOnEntry[p]; // Should be 3
+                        this.players[p].points += penaltyPoints;
+                        foldMessages.push(`${this.players[p].name} (gets ${penaltyPoints} pts)`);
+                    });
+                    
+                    this.updateGameStatus(`${foldMessages.join(', ')} fold(s) to blind toep!`);
+                    this.playersInRound = this.playersInRound.filter(p => !playersFolded.includes(p));
+                }
+                
+                if (this.playersInRound.length === 1) {
+                    this.updateGameStatus("Only one player left! Round over.");
+                    setTimeout(() => this.endRound(), 2000);
+                    return;
+                }
+                
+                let acceptedNames = this.playersInRound.filter(p => p !== this.lastToeper).map(p => this.players[p].name).join(', ');
+                if (acceptedNames) {
+                    this.updateGameStatus(`${acceptedNames} accept(s) the blind toep! Game begins with ${this.stakes} stakes!`);
+                } else {
+                    this.updateGameStatus(`Blind toep accepted. Game begins with ${this.stakes} stakes!`);
+                }
+                
+                this.pendingBlindToepResponse = false; // Reset flag
                 this.updateDisplay();
             }
 
@@ -1080,8 +1145,9 @@
                     if (this.currentPlayer !== 0) {
                         setTimeout(() => this.handleAIPlay(), 1500);
                     } else {
-                        // It's the player's turn - reset processing flag
+                        // It's the player's turn - reset processing flag and update display
                         this.isProcessing = false;
+                        this.updateDisplay();
                     }
                 } else {
                     setTimeout(() => this.evaluateTrick(), 2000);
@@ -1547,6 +1613,37 @@
                 document.getElementById('foldPenalty').textContent = yourEntryStakes;
                 document.getElementById('continuePenalty').textContent = this.stakes;
                 
+                // Show player's current cards
+                const cardsEl = document.getElementById('toepDecisionCards');
+                cardsEl.innerHTML = '';
+                this.players[0].hand.forEach(card => {
+                    const cardEl = document.createElement('div');
+                    cardEl.className = `card ${card.color}`;
+                    cardEl.textContent = `${card.rank}${card.suit}`;
+                    cardEl.style.fontSize = '0.9rem';
+                    cardsEl.appendChild(cardEl);
+                });
+                
+                // Show current trick
+                const trickEl = document.getElementById('toepDecisionTrick');
+                trickEl.innerHTML = '';
+                if (this.currentTrick.length === 0) {
+                    const emptyMsg = document.createElement('div');
+                    emptyMsg.textContent = 'No cards played yet this trick';
+                    emptyMsg.style.color = '#888';
+                    emptyMsg.style.fontStyle = 'italic';
+                    trickEl.appendChild(emptyMsg);
+                } else {
+                    this.currentTrick.forEach(play => {
+                        const cardEl = document.createElement('div');
+                        cardEl.className = `card ${play.card.color}`;
+                        cardEl.textContent = `${play.card.rank}${play.card.suit}`;
+                        cardEl.style.fontSize = '0.9rem';
+                        cardEl.title = `Played by ${this.players[play.player].name}`;
+                        trickEl.appendChild(cardEl);
+                    });
+                }
+                
                 document.getElementById('gameScreen').style.display = 'none';
                 document.getElementById('toepDecisionScreen').style.display = 'block';
             }
@@ -1731,6 +1828,14 @@
                     break;
                 case 'toepResponsesComplete':
                     game.updateGameStatus(`All players responded to toep. Continuing game.`);
+                    break;
+                case 'blindToepProcessed':
+                    if (action.playersFolded && action.playersFolded.length > 0) {
+                        const foldedNames = action.playersFolded.map(i => gameState.players[i]?.name || 'Unknown').join(', ');
+                        game.updateGameStatus(`${foldedNames} fold(s) to blind toep! Game begins with ${gameState.stakes} stakes.`);
+                    } else {
+                        game.updateGameStatus(`Blind toep accepted by all players! Game begins with ${gameState.stakes} stakes.`);
+                    }
                     break;
             }
         }
