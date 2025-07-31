@@ -876,6 +876,8 @@ function endRound(gameState, room) {
   console.log('=== END ROUND DEBUG ===');
   console.log('Players in round:', gameState.playersInRound.map(i => `${i}:${gameState.players[i].name}`));
   console.log('Last trick winner:', gameState.lastTrickWinner);
+  console.log('Last toeper:', gameState.lastToeper);
+  console.log('Tricks played:', gameState.tricksPlayed);
   
   // In Toepen, the winner of the LAST trick wins the entire round
   let winners = [];
@@ -889,7 +891,9 @@ function endRound(gameState, room) {
   console.log('Round winner (last trick winner):', winners.map(i => `${i}:${gameState.players[i].name}`));
   
   // Check for Boertoep rule before awarding points
+  console.log('About to check Boertoep for winner:', winners[0]);
   let boertoepWinner = checkBoertoep(gameState, winners[0]);
+  console.log('Boertoep result:', boertoepWinner);
   
   // Award penalty points to non-winners (based on their entry stakes)
   gameState.playersInRound.forEach(playerIndex => {
