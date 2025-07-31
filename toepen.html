@@ -2163,6 +2163,13 @@
                 game.roundTrickWins[i] = serverState.roundTrickWins[serverIndex] || 0;
             }
             
+            // Handle consecutiveWins array (for Vijfkruizenregel)
+            game.consecutiveWins = [];
+            for (let i = 0; i < serverState.players.length; i++) {
+                const serverIndex = (myServerIndex + i) % serverState.players.length;
+                game.consecutiveWins[i] = serverState.consecutiveWins[serverIndex] || 0;
+            }
+            
             // Handle playerStakesOnEntry array
             game.playerStakesOnEntry = [];
             for (let i = 0; i < serverState.players.length; i++) {
