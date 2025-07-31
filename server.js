@@ -611,7 +611,6 @@ function processGameAction(room, playerIndex, action) {
           return false;
         }
         
-        console.log(`SERVER Toep debug - Player ${playerIndex}, Tricks played: ${gameState.tricksPlayed}, Hand size: ${gameState.players[playerIndex].hand.length}`);
         
         gameState.stakes += 1;
         gameState.lastToeper = playerIndex;
@@ -873,11 +872,6 @@ function evaluateTrick(gameState, room) {
 }
 
 function endRound(gameState, room) {
-  console.log('=== END ROUND DEBUG ===');
-  console.log('Players in round:', gameState.playersInRound.map(i => `${i}:${gameState.players[i].name}`));
-  console.log('Last trick winner:', gameState.lastTrickWinner);
-  console.log('Last toeper:', gameState.lastToeper);
-  console.log('Tricks played:', gameState.tricksPlayed);
   
   // In Toepen, the winner of the LAST trick wins the entire round
   let winners = [];
@@ -888,25 +882,17 @@ function endRound(gameState, room) {
     winners = [gameState.currentPlayer];
   }
   
-  console.log('Round winner (last trick winner):', winners.map(i => `${i}:${gameState.players[i].name}`));
-  
   // Check for Boertoep rule before awarding points
-  console.log('About to check Boertoep for winner:', winners[0]);
   let boertoepWinner = checkBoertoep(gameState, winners[0]);
-  console.log('Boertoep result:', boertoepWinner);
   
   // Award penalty points to non-winners (based on their entry stakes)
   gameState.playersInRound.forEach(playerIndex => {
     if (!winners.includes(playerIndex)) {
       const penaltyPoints = gameState.playerStakesOnEntry[playerIndex];
-      console.log(`Giving ${penaltyPoints} penalty points to ${playerIndex}:${gameState.players[playerIndex].name}`);
       gameState.players[playerIndex].points += penaltyPoints;
     } else if (boertoepWinner) {
       // Boertoep: winner gets -1 point instead of 0
-      console.log(`SERVER Before Boertoep: ${gameState.players[playerIndex].name} has ${gameState.players[playerIndex].points} points`);
       gameState.players[playerIndex].points -= 1;
-      console.log(`SERVER After Boertoep: ${gameState.players[playerIndex].name} has ${gameState.players[playerIndex].points} points`);
-      console.log(`🃏 SERVER BOERTOEP! ${gameState.players[playerIndex].name} wins with Jack on final trick and gets -1 point! 🃏`);
       
       // Send special message to all players about Boertoep
       broadcastSecureGameState(room, { 
@@ -915,7 +901,7 @@ function endRound(gameState, room) {
         message: `🃏 BOERTOEP! ${gameState.players[playerIndex].name} wins with Jack on final trick and gets -1 point! 🃏`
       });
     } else {
-      console.log(`${playerIndex}:${gameState.players[playerIndex].name} is winner, no penalty`);
+      // Winner gets 0 points (no penalty)
     }
   });
   
@@ -1033,28 +1019,17 @@ function checkBoertoep(gameState, winnerIndex) {
   // 3. At least one other player accepts the toep
   // 4. Player wins that final trick with the Jack
   
-  console.log('=== SERVER BOERTOEP DEBUG ===');
-  console.log('Winner index:', winnerIndex);
-  console.log('Tricks played:', gameState.tricksPlayed);
-  console.log('Current trick:', gameState.currentTrick);
-  console.log('Last toeper:', gameState.lastToeper);
-  
   // Check if this is the final trick and the winner is the last person who tooped
   if (gameState.tricksPlayed === 4 && gameState.lastToeper === winnerIndex) {
     // Check if the winner played a Jack on this final trick
     const finalTrick = gameState.currentTrick;
     const winnerCard = finalTrick.find(c => c.player === winnerIndex);
     
-    console.log('Winner card:', winnerCard);
-    console.log('Winner was last toeper:', gameState.lastToeper === winnerIndex);
-    
     if (winnerCard && winnerCard.card.value === 'J') {
-      console.log('🃏 SERVER BOERTOEP DETECTED! 🃏');
       return true; // Boertoep achieved!
     }
   }
   
-  console.log('Boertoep conditions not met');
   return false;
 }
 
