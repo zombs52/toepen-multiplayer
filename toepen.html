@@ -1415,6 +1415,9 @@
                     }
                 });
                 
+                // Update display to show new consecutive wins immediately
+                this.updateDisplay();
+                
                 // Check for Vijfkruizenregel (5 consecutive wins = instant victory)
                 const vijfkruizenWinners = winners.filter(w => this.consecutiveWins[w] >= 5);
                 if (vijfkruizenWinners.length > 0) {
