@@ -70,6 +70,13 @@ function createDeckAndDeal(gameState) {
       }
     }
   });
+  
+  // Check for Armoede after dealing cards
+  if (hasArmoede(gameState)) {
+    return 'armoede';
+  }
+  
+  return 'normal';
 }
 
 function isValidPlay(gameState, card) {
@@ -297,12 +304,27 @@ io.on('connection', (socket) => {
     };
     
     // Create deck and deal cards
-    createDeckAndDeal(room.gameState);
+    const dealResult = createDeckAndDeal(room.gameState);
+    
+    if (dealResult === 'armoede') {
+      // Someone has Armoede - enter Armoede phase
+      room.gameState.gamePhase = 'armoede';
+      room.gameState.armoedePlayers = getArmoedePlayers(room.gameState);
+      room.gameState.armoedePenalty = 2; // Armoede penalty is 2 points (like toep doubles stakes)
+      
+      // Initialize Armoede responses
+      room.gameState.armoedeResponses = new Array(room.gameState.players.length).fill(null);
+      
+      // Set timeout for auto-responses
+      setTimeout(() => {
+        if (room.gameState.gamePhase === 'armoede' && room.gameState.armoedeResponses) {
+          handleArmoedeTimeout(room.gameState, room);
+        }
+      }, 30000);
+    }
     
     // Notify all players that game is starting
-    io.to(roomCode).emit('gameStarted', {
-      gameState: room.gameState
-    });
+    broadcastSecureGameState(room, { type: 'gameStarted' });
     
     // Start laundry timer (10 seconds)
     setTimeout(() => {
@@ -388,6 +410,72 @@ function isPlayingForDeath(gameState, playerIndex) {
   const player = gameState.players[playerIndex];
   const playerEntryStakes = gameState.playerStakesOnEntry[playerIndex];
   return (player.points + playerEntryStakes) >= 10;
+}
+
+// Check if any player has exactly 9 points (Armoede condition)
+function hasArmoede(gameState) {
+  return gameState.players.some((player, index) => 
+    player.points === 9 && gameState.playersInRound.includes(index)
+  );
+}
+
+// Get players who have Armoede (9 points)
+function getArmoedePlayers(gameState) {
+  return gameState.players
+    .map((player, index) => ({ player, index }))
+    .filter(({ player, index }) => 
+      player.points === 9 && gameState.playersInRound.includes(index)
+    )
+    .map(({ index }) => index);
+}
+
+// Handle Armoede timeout - auto-accept for remaining players
+function handleArmoedeTimeout(gameState, room) {
+  gameState.playersInRound.forEach(playerIndex => {
+    if (gameState.armoedeResponses[playerIndex] === null) {
+      gameState.armoedeResponses[playerIndex] = 'accept'; // Auto-accept
+      gameState.playerStakesOnEntry[playerIndex] = gameState.armoedePenalty;
+    }
+  });
+  
+  processArmoedeResponses(gameState, room);
+}
+
+// Process all Armoede responses and continue to game
+function processArmoedeResponses(gameState, room) {
+  // Check if all players have responded
+  const activePlayerResponses = gameState.playersInRound
+    .map(playerIndex => gameState.armoedeResponses[playerIndex])
+    .filter(response => response !== null);
+
+  if (activePlayerResponses.length === gameState.playersInRound.length) {
+    // Process folded players
+    const foldedPlayers = [];
+    gameState.playersInRound.forEach(playerIndex => {
+      if (gameState.armoedeResponses[playerIndex] === 'fold') {
+        foldedPlayers.push(playerIndex);
+        gameState.players[playerIndex].points += 1; // Folding to Armoede gives 1 penalty point
+      }
+    });
+    
+    // Remove folded players from round
+    gameState.playersInRound = gameState.playersInRound.filter(
+      playerIndex => !foldedPlayers.includes(playerIndex)
+    );
+    
+    // Check if only one player left
+    if (gameState.playersInRound.length === 1) {
+      endRound(gameState, room);
+      return;
+    }
+    
+    // Move to playing phase
+    gameState.gamePhase = 'playing';
+    gameState.armoedeResponses = null;
+    
+    // Broadcast the completed responses
+    broadcastSecureGameState(room, { type: 'armoedeResponsesComplete', foldedPlayers });
+  }
 }
 
 // Security: Create a filtered game state for a specific player (only shows their own cards)
@@ -602,6 +690,30 @@ function processGameAction(room, playerIndex, action) {
       }
       return true;
       
+    case 'acceptArmoede':
+      if (gameState.gamePhase === 'armoede' && gameState.armoedeResponses && gameState.armoedeResponses[playerIndex] === null) {
+        gameState.armoedeResponses[playerIndex] = 'accept';
+        // Update stakes tracking for accepting player
+        gameState.playerStakesOnEntry[playerIndex] = gameState.armoedePenalty;
+        
+        // Broadcast the acceptance immediately
+        broadcastSecureGameState(room, { type: 'acceptArmoede', playerIndex: playerIndex });
+        
+        processArmoedeResponses(gameState, room);
+      }
+      return false; // Already broadcasted
+      
+    case 'foldToArmoede':
+      if (gameState.gamePhase === 'armoede' && gameState.armoedeResponses && gameState.armoedeResponses[playerIndex] === null) {
+        gameState.armoedeResponses[playerIndex] = 'fold';
+        
+        // Broadcast the fold immediately
+        broadcastSecureGameState(room, { type: 'foldToArmoede', playerIndex: playerIndex });
+        
+        processArmoedeResponses(gameState, room);
+      }
+      return false; // Already broadcasted
+      
     case 'submitLaundry':
       if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection && gameState.deck.length >= 4) {
         gameState.pendingLaundry = {
@@ -787,7 +899,28 @@ function endRound(gameState, room) {
       });
       
       // Create new deck and deal cards
-      createDeckAndDeal(gameState);
+      const dealResult = createDeckAndDeal(gameState);
+      
+      if (dealResult === 'armoede') {
+        // Someone has Armoede - enter Armoede phase
+        gameState.gamePhase = 'armoede';
+        gameState.armoedePlayers = getArmoedePlayers(gameState);
+        gameState.armoedePenalty = 2; // Armoede penalty is 2 points
+        
+        // Initialize Armoede responses
+        gameState.armoedeResponses = new Array(gameState.players.length).fill(null);
+        
+        // Set timeout for auto-responses
+        setTimeout(() => {
+          if (gameState.gamePhase === 'armoede' && gameState.armoedeResponses) {
+            handleArmoedeTimeout(gameState, room);
+          }
+        }, 30000);
+        
+        // Broadcast the Armoede phase
+        broadcastSecureGameState(room, { type: 'armoede', armoedePlayers: gameState.armoedePlayers });
+        return;
+      }
       
       // Process blind toep if someone called it
       if (gameState.blindToepCaller !== undefined && gameState.blindToepCaller >= 0) {
