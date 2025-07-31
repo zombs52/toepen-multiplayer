@@ -161,10 +161,7 @@ function processLaundryInspection(gameState, inspectorIndex, room) {
     setTimeout(() => {
       if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
         gameState.gamePhase = 'playing';
-        io.to(room.code).emit('gameStateUpdate', {
-          gameState: gameState,
-          lastAction: { type: 'laundryPhaseEnd' }
-        });
+        broadcastSecureGameState(room, { type: 'laundryPhaseEnd' });
       }
     }, 10000);
   } else {
@@ -311,10 +308,7 @@ io.on('connection', (socket) => {
     setTimeout(() => {
       if (room.gameState && room.gameState.gamePhase === 'laundry' && !room.gameState.awaitingInspection) {
         room.gameState.gamePhase = 'playing';
-        io.to(roomCode).emit('gameStateUpdate', {
-          gameState: room.gameState,
-          lastAction: { type: 'laundryPhaseEnd' }
-        });
+        broadcastSecureGameState(room, { type: 'laundryPhaseEnd' });
       }
     }, 10000);
     
@@ -347,10 +341,7 @@ io.on('connection', (socket) => {
     // Broadcast updated game state to all players (if not already done in processGameAction)
     if (shouldBroadcast) {
       const actionWithPlayer = { ...action, playerIndex: playerIndex };
-      io.to(roomCode).emit('gameStateUpdate', {
-        gameState: room.gameState,
-        lastAction: actionWithPlayer
-      });
+      broadcastSecureGameState(room, actionWithPlayer);
     }
   });
 
@@ -399,6 +390,35 @@ function isPlayingForDeath(gameState, playerIndex) {
   return (player.points + playerEntryStakes) >= 10;
 }
 
+// Security: Create a filtered game state for a specific player (only shows their own cards)
+function getFilteredGameStateForPlayer(gameState, targetPlayerIndex) {
+  const filteredState = JSON.parse(JSON.stringify(gameState)); // Deep clone
+  
+  // Filter each player's hand - only show cards to the owning player
+  filteredState.players.forEach((player, index) => {
+    if (index !== targetPlayerIndex) {
+      // Hide other players' cards - only show hand size
+      player.hand = new Array(player.hand.length).fill(null);
+    }
+    // Own cards remain visible
+  });
+  
+  return filteredState;
+}
+
+// Security: Broadcast game state with each player receiving only their own cards
+function broadcastSecureGameState(room, lastAction) {
+  room.players.forEach(player => {
+    if (player.id && io.sockets.sockets.get(player.id)) {
+      const filteredState = getFilteredGameStateForPlayer(room.gameState, player.index);
+      io.to(player.id).emit('gameStateUpdate', {
+        gameState: filteredState,
+        lastAction: lastAction
+      });
+    }
+  });
+}
+
 // Game action processor - returns true if main handler should broadcast, false if already handled
 function processGameAction(room, playerIndex, action) {
   const gameState = room.gameState;
@@ -431,10 +451,7 @@ function processGameAction(room, playerIndex, action) {
             setTimeout(() => {
               evaluateTrick(gameState, room);
               // Broadcast updated state after trick evaluation
-              io.to(roomCode).emit('gameStateUpdate', {
-                gameState: gameState,
-                lastAction: { type: 'trickComplete' }
-              });
+              broadcastSecureGameState(room, { type: 'trickComplete' });
             }, 3000);
           } else {
             // Next player's turn
@@ -451,8 +468,9 @@ function processGameAction(room, playerIndex, action) {
           // Send subtle notification to the player who tried to toep
           const playerSocket = room.players.find(p => p.index === playerIndex)?.id;
           if (playerSocket) {
+            const filteredState = getFilteredGameStateForPlayer(gameState, playerIndex);
             io.to(playerSocket).emit('gameStateUpdate', {
-              gameState: gameState,
+              gameState: filteredState,
               lastAction: { 
                 type: 'playingForDeathToepAttempt', 
                 playerIndex: playerIndex,
@@ -480,10 +498,7 @@ function processGameAction(room, playerIndex, action) {
           if (gameState.gamePhase === 'toepResponse' && gameState.toepResponses) {
             handleAIToepResponses(gameState, room);
             // Broadcast the updated state after timeout
-            io.to(roomCode).emit('gameStateUpdate', {
-              gameState: gameState,
-              lastAction: { type: 'autoToepResponse' }
-            });
+            broadcastSecureGameState(room, { type: 'autoToepResponse' });
           }
         }, 30000);
       }
@@ -496,10 +511,7 @@ function processGameAction(room, playerIndex, action) {
         gameState.playerStakesOnEntry[playerIndex] = gameState.stakes;
         
         // Broadcast the acceptance immediately
-        io.to(roomCode).emit('gameStateUpdate', {
-          gameState: gameState,
-          lastAction: { type: 'acceptToep', playerIndex: playerIndex }
-        });
+        broadcastSecureGameState(room, { type: 'acceptToep', playerIndex: playerIndex });
         
         checkToepResponses(gameState, room);
       } else if (gameState.gamePhase === 'blindToepResponse' && gameState.blindToepResponses && gameState.blindToepResponses[playerIndex] === null) {
@@ -507,10 +519,7 @@ function processGameAction(room, playerIndex, action) {
         // Stakes tracking already set to 3 for all players
         
         // Broadcast the acceptance immediately
-        io.to(roomCode).emit('gameStateUpdate', {
-          gameState: gameState,
-          lastAction: { type: 'acceptBlindToep', playerIndex: playerIndex }
-        });
+        broadcastSecureGameState(room, { type: 'acceptBlindToep', playerIndex: playerIndex });
         
         checkBlindToepResponses(gameState, room);
       }
@@ -525,8 +534,9 @@ function processGameAction(room, playerIndex, action) {
           gameState.playerStakesOnEntry[playerIndex] = gameState.stakes;
           
           // Send message explaining automatic acceptance
+          const filteredState = getFilteredGameStateForPlayer(gameState, playerIndex);
           io.to(room.players.find(p => p.index === playerIndex)?.id).emit('gameStateUpdate', {
-            gameState: gameState,
+            gameState: filteredState,
             lastAction: { type: 'forcedAcceptToep', playerIndex: playerIndex, message: 'You are playing for death - automatically accept toep!' }
           });
           
@@ -537,10 +547,7 @@ function processGameAction(room, playerIndex, action) {
         gameState.toepResponses[playerIndex] = 'fold';
         
         // Broadcast the fold immediately
-        io.to(roomCode).emit('gameStateUpdate', {
-          gameState: gameState,
-          lastAction: { type: 'foldToToep', playerIndex: playerIndex }
-        });
+        broadcastSecureGameState(room, { type: 'foldToToep', playerIndex: playerIndex });
         
         checkToepResponses(gameState, room);
       } else if (gameState.gamePhase === 'blindToepResponse' && gameState.blindToepResponses && gameState.blindToepResponses[playerIndex] === null) {
@@ -552,10 +559,7 @@ function processGameAction(room, playerIndex, action) {
         gameState.playersInRound = gameState.playersInRound.filter(p => p !== playerIndex);
         
         // Broadcast the fold immediately
-        io.to(roomCode).emit('gameStateUpdate', {
-          gameState: gameState,
-          lastAction: { type: 'foldToBlindToep', playerIndex: playerIndex }
-        });
+        broadcastSecureGameState(room, { type: 'foldToBlindToep', playerIndex: playerIndex });
         
         checkBlindToepResponses(gameState, room);
       }
@@ -614,10 +618,7 @@ function processGameAction(room, playerIndex, action) {
               setTimeout(() => {
                 if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
                   gameState.gamePhase = 'playing';
-                  io.to(room.code).emit('gameStateUpdate', {
-                    gameState: gameState,
-                    lastAction: { type: 'laundryPhaseEnd' }
-                  });
+                  broadcastSecureGameState(room, { type: 'laundryPhaseEnd' });
                 }
               }, 10000);
             } else {
@@ -625,10 +626,7 @@ function processGameAction(room, playerIndex, action) {
             }
             
             // Broadcast the result
-            io.to(room.code).emit('gameStateUpdate', {
-              gameState: gameState,
-              lastAction: { type: 'laundryTimeout', playerIndex: playerIndex }
-            });
+            broadcastSecureGameState(room, { type: 'laundryTimeout', playerIndex: playerIndex });
           }
         }, 10000);
       }
@@ -641,10 +639,7 @@ function processGameAction(room, playerIndex, action) {
         processLaundryInspection(gameState, playerIndex, room);
         
         // Broadcast the inspection result
-        io.to(room.code).emit('gameStateUpdate', {
-          gameState: gameState,
-          lastAction: { type: 'laundryInspected', playerIndex: playerIndex, claimerIndex: claimerIndex }
-        });
+        broadcastSecureGameState(room, { type: 'laundryInspected', playerIndex: playerIndex, claimerIndex: claimerIndex });
       }
       return false; // Already broadcasted or invalid
       
@@ -795,19 +790,13 @@ function endRound(gameState, room) {
             processServerBlindToepResponse(gameState, room);
           } else {
             gameState.gamePhase = 'playing';
-            io.to(room.code).emit('gameStateUpdate', {
-              gameState: gameState,
-              lastAction: { type: 'laundryPhaseEnd' }
-            });
+            broadcastSecureGameState(room, { type: 'laundryPhaseEnd' });
           }
         }
       }, 10000);
       
       // Broadcast new round state
-      io.to(room.code).emit('gameStateUpdate', {
-        gameState: gameState,
-        lastAction: { type: 'newRound' }
-      });
+      broadcastSecureGameState(room, { type: 'newRound' });
     }, 3000);
   }
 }
@@ -821,13 +810,10 @@ function checkToepResponses(gameState, room) {
       gameState.playerStakesOnEntry[playerIndex] = gameState.stakes;
       
       // Send message to all players about the auto-acceptance
-      io.to(room.code).emit('gameStateUpdate', {
-        gameState: gameState,
-        lastAction: { 
-          type: 'autoAcceptToep', 
-          playerIndex: playerIndex, 
-          message: `${gameState.players[playerIndex].name} is playing for death - automatically accepts toep!` 
-        }
+      broadcastSecureGameState(room, { 
+        type: 'autoAcceptToep', 
+        playerIndex: playerIndex, 
+        message: `${gameState.players[playerIndex].name} is playing for death - automatically accepts toep!` 
       });
     }
   });
@@ -864,10 +850,7 @@ function checkToepResponses(gameState, room) {
     }
     
     // Broadcast the updated state after all responses processed
-    io.to(room.code).emit('gameStateUpdate', {
-      gameState: gameState,
-      lastAction: { type: 'toepResponsesComplete' }
-    });
+    broadcastSecureGameState(room, { type: 'toepResponsesComplete' });
   }
 }
 
@@ -905,10 +888,7 @@ function processServerBlindToepResponse(gameState, room) {
   }
   
   // Broadcast the blind toep response phase
-  io.to(room.code).emit('gameStateUpdate', {
-    gameState: gameState,
-    lastAction: { type: 'blindToepResponse', blindToeper: gameState.lastToeper }
-  });
+  broadcastSecureGameState(room, { type: 'blindToepResponse', blindToeper: gameState.lastToeper });
 }
 
 function checkBlindToepResponses(gameState, room) {
@@ -925,10 +905,7 @@ function checkBlindToepResponses(gameState, room) {
       setTimeout(() => endRound(gameState, room), 2000);
     } else {
       // Continue to playing phase
-      io.to(room.code).emit('gameStateUpdate', {
-        gameState: gameState,
-        lastAction: { type: 'blindToepResponsesComplete' }
-      });
+      broadcastSecureGameState(room, { type: 'blindToepResponsesComplete' });
     }
   }
 }
