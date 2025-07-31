@@ -472,7 +472,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-2.2 🃏</h1>
+            <h1>🃏 TOEPEN V-2.2-DEBUG 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -1730,11 +1730,19 @@
                 // Blind toep button - show during roundEnd phase
                 const canBlindToep = this.gamePhase === 'roundEnd' && this.blindToepCaller === -1;
                 
+                // Debug: Log blind toep button visibility
+                console.log('Blind toep button check - gamePhase:', this.gamePhase, 'blindToepCaller:', this.blindToepCaller, 'canBlindToep:', canBlindToep);
+                
                 toepBtn.style.display = canToep ? 'inline-block' : 'none';
                 foldBtn.style.display = canFold ? 'inline-block' : 'none';
                 vuileWasBtn.style.display = canSubmitVuileWas ? 'inline-block' : 'none';
                 witteWasBtn.style.display = canSubmitWitteWas ? 'inline-block' : 'none';
                 blindToepBtn.style.display = canBlindToep ? 'inline-block' : 'none';
+                
+                // Debug: Log if button is visible
+                if (canBlindToep) {
+                    console.log('✅ Blind toep button should be VISIBLE now!');
+                }
                 
                 // Show game menu in multiplayer
                 const gameMenu = document.getElementById('gameMenu');
@@ -2430,6 +2438,7 @@
         }
 
         function callBlindToep() {
+            alert('Blind Toep button was clicked!'); // Simple test to see if function is called
             console.log('Global callBlindToep() called - isMultiplayer:', isMultiplayer);
             console.log('Button clicked! Game phase:', game.gamePhase, 'blindToepCaller:', game.blindToepCaller);
             
