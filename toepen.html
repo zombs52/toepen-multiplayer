@@ -472,7 +472,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-2.3 🃏</h1>
+            <h1>🃏 TOEPEN V-2.4 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -2004,7 +2004,7 @@
                     break;
                 case 'blindToepCalled':
                     const callerName = gameState.players[action.playerIndex]?.name || 'Unknown';
-                    game.updateGameStatus(`✅ ${callerName} called Blind Toep! Stakes are now 3. Others must decide.`);
+                    game.updateGameStatus(`✅ ${callerName} called Blind Toep! Next round starts at 3 stakes.`);
                     break;
                 case 'blindToepResponse':
                     const blindToeper = gameState.players[action.blindToeper]?.name || 'Unknown';

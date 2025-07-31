@@ -675,8 +675,8 @@ function processGameAction(room, playerIndex, action) {
       } else if (gameState.gamePhase === 'blindToepResponse' && gameState.blindToepResponses && gameState.blindToepResponses[playerIndex] === null) {
         gameState.blindToepResponses[playerIndex] = 'fold';
         
-        // Player gets penalty based on their entry stakes (1 point, not 3)
-        const penaltyPoints = gameState.playerStakesOnEntry[playerIndex];
+        // Player gets penalty based on their original entry stakes (1 point, not 3)
+        const penaltyPoints = gameState.originalEntryStakes ? gameState.originalEntryStakes[playerIndex] : 1;
         gameState.players[playerIndex].points += penaltyPoints;
         gameState.playersInRound = gameState.playersInRound.filter(p => p !== playerIndex);
         
@@ -793,22 +793,12 @@ function processGameAction(room, playerIndex, action) {
       // Only allow during roundEnd phase
       if (gameState.gamePhase === 'roundEnd' && (gameState.blindToepCaller === undefined || gameState.blindToepCaller === -1)) {
         gameState.blindToepCaller = playerIndex;
-        gameState.lastToeper = playerIndex;
-        gameState.stakes = 3;
         
-        // Store original entry stakes for fold penalties (1 point each)
-        gameState.originalEntryStakes = [...gameState.playerStakesOnEntry];
-        // Update entry stakes for continuing players (3 points if they lose)
-        gameState.playerStakesOnEntry = new Array(gameState.players.length).fill(3);
-        
-        // Immediately trigger blind toep response phase
-        processServerBlindToepResponse(gameState, room);
-        
-        // Broadcast the blind toep call
+        // Just broadcast the blind toep call - decisions will happen when new round starts
         broadcastSecureGameState(room, { 
           type: 'blindToepCalled', 
           playerIndex: playerIndex,
-          message: `${gameState.players[playerIndex].name} called Blind Toep! Stakes are now 3.`
+          message: `${gameState.players[playerIndex].name} called Blind Toep! Next round starts at 3 stakes.`
         });
         
         return false; // Already broadcasted
@@ -1042,7 +1032,9 @@ function handleAIToepResponses(gameState, room) {
 function processServerBlindToepResponse(gameState, room) {
   // Set stakes to 3 for blind toep
   gameState.stakes = 3;
-  // All players start at stakes 3 for penalty calculation
+  // Store original entry stakes for fold penalties (1 point each)
+  gameState.originalEntryStakes = [...gameState.playerStakesOnEntry];
+  // All players start at stakes 3 for penalty calculation (if they continue and lose)
   gameState.playerStakesOnEntry = new Array(gameState.players.length).fill(3);
   // Mark blind toeper as last toeper (can't toep again until someone else toeps)
   gameState.lastToeper = gameState.blindToepCaller;
