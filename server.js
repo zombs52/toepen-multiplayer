@@ -138,6 +138,8 @@ function processLaundryInspection(gameState, inspectorIndex, room) {
   if (isValidLaundry) {
     // Valid laundry - inspector gets penalty
     gameState.players[inspectorIndex].points += 1;
+    // Mark player as having valid laundry (cards should be visible temporarily)
+    player.hasValidLaundry = true;
     gameState.laundryResult = {
       type: 'validClaim',
       inspector: inspectorIndex,
@@ -168,6 +170,13 @@ function processLaundryInspection(gameState, inspectorIndex, room) {
     setTimeout(() => {
       if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
         gameState.gamePhase = 'playing';
+        // Clear valid laundry flags after a delay to let players see the new cards briefly
+        setTimeout(() => {
+          gameState.players.forEach(player => {
+            player.hasValidLaundry = false;
+          });
+          broadcastSecureGameState(room, { type: 'clearValidLaundryFlags' });
+        }, 3000); // Show cards for 3 seconds
         broadcastSecureGameState(room, { type: 'laundryPhaseEnd' });
       }
     }, 10000);
@@ -753,6 +762,8 @@ function processGameAction(room, playerIndex, action) {
                 player.hand.push(gameState.deck.pop());
               }
             }
+            // Mark player as having claimed laundry (cards should be visible temporarily)
+            player.hasValidLaundry = true;
             
             gameState.pendingLaundry = null;
             gameState.awaitingInspection = false;
@@ -919,9 +930,10 @@ function endRound(gameState, room) {
         gameState.currentPlayer = gameState.playersInRound[0];
       }
       
-      // Reset card visibility for new round
+      // Reset card visibility and laundry flags for new round
       gameState.players.forEach(player => {
         player.cardsVisible = false;
+        player.hasValidLaundry = false; // Clear valid laundry flag from previous round
       });
       
       // Create new deck and deal cards

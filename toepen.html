@@ -742,6 +742,7 @@
                 // Reset any face-up card penalties from previous rounds
                 this.players.forEach(player => {
                     player.cardsVisible = false;
+                    player.hasValidLaundry = false; // Clear valid laundry flag from previous round
                 });
                 this.currentTrick = [];
                 this.tricksPlayed = 0;
@@ -892,6 +893,9 @@
                             player.hand.push(this.deck.pop());
                         }
                     }
+                    
+                    // Mark player as having claimed laundry (cards should be visible temporarily)
+                    player.hasValidLaundry = true;
                 } else {
                     // Someone inspected - now we validate the actual cards
                     const isValidLaundry = type === 'witte' ? this.isWitteWas(cards) : this.isVuileWas(cards);
@@ -908,6 +912,9 @@
                                 player.hand.push(this.deck.pop());
                             }
                         }
+                        
+                        // Mark player as having valid laundry (cards should be visible temporarily)
+                        player.hasValidLaundry = true;
                         
                         // Show visual inspection result
                         this.showLaundryInspectionResult(playerIndex, cards, true);
@@ -944,6 +951,14 @@
                     clearTimeout(this.laundryPhaseTimer);
                     this.laundryPhaseTimer = null;
                 }
+                
+                // Clear valid laundry flags after a delay to let players see the new cards briefly
+                setTimeout(() => {
+                    this.players.forEach(player => {
+                        player.hasValidLaundry = false;
+                    });
+                    this.updateDisplay();
+                }, 3000); // Show cards for 3 seconds
                 
                 // Ensure all laundry-related flags are properly reset
                 this.gamePhase = 'playing';
@@ -1602,6 +1617,15 @@
                                     cardEl.style.border = '2px solid #ff6b6b'; // Red border for penalty
                                     cardsEl.appendChild(cardEl);
                                 });
+                            } else if (player.hasValidLaundry) {
+                                // Show face-up cards for players with valid laundry (temporarily visible)
+                                player.hand.forEach(card => {
+                                    const cardEl = document.createElement('div');
+                                    cardEl.className = `card ${card.color}`;
+                                    cardEl.textContent = `${card.rank}${card.suit}`;
+                                    cardEl.style.border = '2px solid #4CAF50'; // Green border for valid laundry
+                                    cardsEl.appendChild(cardEl);
+                                });
                             } else {
                                 // Show card backs for normal AI players
                                 for (let i = 0; i < player.hand.length; i++) {
@@ -1995,6 +2019,13 @@
                     break;
                 case 'laundryPhaseEnd':
                     game.updateGameStatus(`Laundry phase ended. Game begins!`);
+                    break;
+                case 'clearValidLaundryFlags':
+                    // Clear valid laundry flags on all players
+                    game.players.forEach(player => {
+                        player.hasValidLaundry = false;
+                    });
+                    game.updateDisplay();
                     break;
                 case 'newRound':
                     game.updateGameStatus(`Round ${gameState.round} begins! Check for laundry.`);
