@@ -437,42 +437,12 @@
             0%, 100% { background-color: transparent; }
             50% { background-color: rgba(255, 107, 107, 0.3); }
         }
-
-        /* Toast notification styles */
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #4CAF50;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-weight: 500;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 10000;
-            transform: translateX(400px);
-            opacity: 0;
-            transition: all 0.3s ease;
-        }
-
-        .toast.show {
-            transform: translateX(0);
-            opacity: 1;
-        }
-
-        .toast.error {
-            background: #f44336;
-        }
-
-        .toast.info {
-            background: #2196F3;
-        }
     </style>
 </head>
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-1.9 🃏</h1>
+            <h1>🃏 TOEPEN V-1.6 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -552,26 +522,6 @@
                 <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
                     <button class="btn btn-primary" onclick="acceptToep()" style="box-shadow: 0 3px 10px rgba(76, 175, 80, 0.3);">Accept & Continue</button>
                     <button class="btn btn-danger" onclick="foldToToep()" style="box-shadow: 0 3px 10px rgba(244, 67, 54, 0.3);">Fold Round</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Armoede Decision Overlay -->
-        <div id="armoedeDecisionOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); z-index: 1000;">
-            <div style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #2d1b1b, #3e1616); border: 2px solid #ff6b6b; border-radius: 15px; padding: 20px; max-width: 450px; width: 90%; text-align: center; box-shadow: 0 5px 20px rgba(255, 107, 107, 0.3);">
-                <h2 style="color: #ff6b6b; margin-bottom: 15px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">💀 ARMOEDE! 💀</h2>
-                <div id="armoedeMessage" style="margin: 15px 0; font-size: 1.1rem; color: white; font-weight: 500;"></div>
-                <div style="background: rgba(255, 107, 107, 0.15); border: 1px solid #ff6b6b; border-radius: 8px; padding: 12px; margin: 15px 0;">
-                    <div style="color: #ff6b6b; font-weight: bold; font-size: 1.1rem;">Penalty Stakes: <span id="armoedePenalty">2</span> points</div>
-                </div>
-                <div style="margin: 15px 0; font-size: 0.9rem; color: #ddd; line-height: 1.4;">
-                    <p style="margin: 5px 0;">Someone has <strong style="color: #ff6b6b;">9 points</strong> (Armoede)</p>
-                    <p style="margin: 5px 0;">Fold now: <strong style="color: #ff6b6b;">1 penalty point</strong></p>
-                    <p style="margin: 5px 0;">Continue and lose: <strong style="color: #ff6b6b;"><span id="armoedeStakes">2</span> penalty points</strong></p>
-                </div>
-                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
-                    <button class="btn btn-primary" onclick="acceptArmoede()" style="box-shadow: 0 3px 10px rgba(76, 175, 80, 0.3);">Accept & Continue</button>
-                    <button class="btn btn-danger" onclick="foldToArmoede()" style="box-shadow: 0 3px 10px rgba(244, 67, 54, 0.3);">Fold Round</button>
                 </div>
             </div>
         </div>
@@ -929,7 +879,6 @@
 
                 this.pendingLaundry = null;
                 this.awaitingInspection = false;
-                this.isProcessing = false; // Ensure processing flag is reset
                 this.updateDisplay();
 
                 // Continue with laundry phase or move to playing
@@ -949,12 +898,8 @@
                     this.laundryPhaseTimer = null;
                 }
                 
-                // Ensure all laundry-related flags are properly reset
                 this.gamePhase = 'playing';
                 this.laundryPhaseComplete = true;
-                this.awaitingInspection = false;
-                this.pendingLaundry = null;
-                this.isProcessing = false; // Reset processing flag to ensure cards can be played
                 
                 // Check if there's a pending blind toep response
                 if (this.pendingBlindToepResponse) {
@@ -980,12 +925,6 @@
                     return;
                 }
                 
-                // Check if player is playing for death (would be eliminated if they lose)
-                if (this.isPlayingForDeath(0)) {
-                    this.updateGameStatus("You can't toep when playing for death! You're already risking elimination.");
-                    return;
-                }
-                
                 this.stakes += 1;
                 this.lastToeper = 0; // Mark human player as the last one to toep
                 this.updateGameStatus(`You toep! Stakes raised to ${this.stakes}. Others must accept or fold.`);
@@ -1003,21 +942,14 @@
                 let playersAccepted = [];
                 
                 playersToRespond.forEach(playerIndex => {
-                    // Players playing for death must automatically accept all toeps
-                    if (this.isPlayingForDeath(playerIndex)) {
-                        playersAccepted.push(playerIndex);
-                        this.playerStakesOnEntry[playerIndex] = this.stakes;
-                        this.updateGameStatus(`${this.players[playerIndex].name} is playing for death - automatically accepts toep!`);
+                    // AI decision: 40% chance to fold when stakes are high
+                    const foldChance = this.stakes >= 4 ? 0.4 : 0.2;
+                    if (Math.random() < foldChance) {
+                        playersFolded.push(playerIndex);
                     } else {
-                        // AI decision: 40% chance to fold when stakes are high
-                        const foldChance = this.stakes >= 4 ? 0.4 : 0.2;
-                        if (Math.random() < foldChance) {
-                            playersFolded.push(playerIndex);
-                        } else {
-                            playersAccepted.push(playerIndex);
-                            // Update stakes tracking for AI players who accept
-                            this.playerStakesOnEntry[playerIndex] = this.stakes;
-                        }
+                        playersAccepted.push(playerIndex);
+                        // Update stakes tracking for AI players who accept
+                        this.playerStakesOnEntry[playerIndex] = this.stakes;
                     }
                 });
                 
@@ -1135,8 +1067,8 @@
                     return;
                 }
                 
-                // Continue with remaining players - advance to next player in turn order
-                this.nextPlayer();
+                // Continue with remaining AI players
+                this.currentPlayer = this.playersInRound[0];
                 setTimeout(() => {
                     if (this.currentPlayer !== 0) {
                         this.handleAIPlay();
@@ -1192,9 +1124,8 @@
             handleAIPlay() {
                 if (this.currentPlayer === 0 || !this.playersInRound.includes(this.currentPlayer)) return;
                 
-                // AI might toep occasionally on their turn (but only if they can and not playing for death)
-                if (Math.random() < 0.12 && this.stakes < 8 && this.lastToeper !== this.currentPlayer && 
-                    !this.isPlayingForDeath(this.currentPlayer)) {
+                // AI might toep occasionally on their turn (but only if they can)
+                if (Math.random() < 0.12 && this.stakes < 8 && this.lastToeper !== this.currentPlayer) {
                     setTimeout(() => this.handleAIToep(), 500);
                     return;
                 }
@@ -1258,34 +1189,20 @@
                 
                 // Check if human player needs to decide
                 if (playersToRespond.includes(0)) {
-                    // If human player is playing for death, automatically accept
-                    if (this.isPlayingForDeath(0)) {
-                        this.playerStakesOnEntry[0] = this.stakes;
-                        this.updateGameStatus(`You are playing for death - automatically accept toep! Stakes now ${this.stakes}.`);
-                        playersToRespond = playersToRespond.filter(p => p !== 0); // Remove human from decision
-                    } else {
-                        this.showToepDecisionScreen();
-                        return; // Wait for human decision
-                    }
+                    this.showToepDecisionScreen();
+                    return; // Wait for human decision
                 }
                 
                 // Handle AI-only responses
                 let playersAccepted = [];
                 playersToRespond.forEach(playerIndex => {
-                    // Players playing for death must automatically accept all toeps
-                    if (this.isPlayingForDeath(playerIndex)) {
-                        playersAccepted.push(playerIndex);
-                        this.playerStakesOnEntry[playerIndex] = this.stakes;
-                        this.updateGameStatus(`${this.players[playerIndex].name} is playing for death - automatically accepts toep!`);
+                    const foldChance = this.stakes >= 4 ? 0.4 : 0.25;
+                    if (Math.random() < foldChance) {
+                        playersFolded.push(playerIndex);
                     } else {
-                        const foldChance = this.stakes >= 4 ? 0.4 : 0.25;
-                        if (Math.random() < foldChance) {
-                            playersFolded.push(playerIndex);
-                        } else {
-                            playersAccepted.push(playerIndex);
-                            // Update stakes tracking for AI players who accept
-                            this.playerStakesOnEntry[playerIndex] = this.stakes;
-                        }
+                        playersAccepted.push(playerIndex);
+                        // Update stakes tracking for AI players who accept
+                        this.playerStakesOnEntry[playerIndex] = this.stakes;
                     }
                 });
                 
@@ -1318,13 +1235,6 @@
                 const hasSuit = player.hand.some(c => c.suit === this.leadSuit);
                 
                 return !hasSuit || card.suit === this.leadSuit;
-            }
-
-            // Check if a player would be eliminated if they lose this round (playing for death)
-            isPlayingForDeath(playerIndex) {
-                const player = this.players[playerIndex];
-                const playerEntryStakes = this.playerStakesOnEntry[playerIndex];
-                return (player.points + playerEntryStakes) >= 10;
             }
 
             evaluateTrick() {
@@ -1402,8 +1312,6 @@
                 
                 this.round++;
                 this.gamePhase = 'roundEnd';
-                this.currentTrick = []; // Clear any cards left on the table
-                this.leadSuit = null; // Clear lead suit
                 this.blindToepCaller = -1; // Reset blind toep caller
                 setTimeout(() => {
                     this.updateDisplay();
@@ -1473,10 +1381,37 @@
                 
                 // After 3 seconds, replace with new cards
                 setTimeout(() => {
-                    // Clear the inspection display and let normal updateDisplay handle the cards
                     cardsEl.innerHTML = '';
-                    this.updateDisplay();
-                }.bind(this), 3000);
+                    if (isValid) {
+                        // Valid claim - show cards appropriately
+                        if (playerIndex === 0) {
+                            // Human player should always see their own cards face-up
+                            player.hand.forEach(card => {
+                                const cardEl = document.createElement('div');
+                                cardEl.className = `card ${card.color}`;
+                                cardEl.textContent = `${card.rank}${card.suit}`;
+                                cardsEl.appendChild(cardEl);
+                            });
+                        } else {
+                            // AI players - show card backs
+                            for (let i = 0; i < player.hand.length; i++) {
+                                const cardEl = document.createElement('div');
+                                cardEl.className = 'card card-back';
+                                cardEl.textContent = '🂠';
+                                cardsEl.appendChild(cardEl);
+                            }
+                        }
+                    } else {
+                        // Invalid claim - new cards face up
+                        player.hand.forEach(card => {
+                            const cardEl = document.createElement('div');
+                            cardEl.className = `card ${card.color}`;
+                            cardEl.textContent = `${card.rank}${card.suit}`;
+                            cardEl.style.border = '2px solid #ff6b6b'; // Red border for penalty
+                            cardsEl.appendChild(cardEl);
+                        });
+                    }
+                }, 3000);
             }
 
             nextRound() {
@@ -1738,21 +1673,6 @@
                 document.getElementById('toepDecisionOverlay').style.display = 'none';
                 this.isBlindToepDecision = false; // Reset flag
             }
-            
-            showArmoedeDecisionScreen() {
-                const armoedePlayers = this.armoedePlayers || [];
-                const armoedeNames = armoedePlayers.map(index => this.players[index].name).join(', ');
-                
-                document.getElementById('armoedeMessage').textContent = `${armoedeNames} has Armoede (9 points)! Stakes doubled.`;
-                document.getElementById('armoedePenalty').textContent = this.armoedePenalty || 2;
-                document.getElementById('armoedeStakes').textContent = this.armoedePenalty || 2;
-                
-                document.getElementById('armoedeDecisionOverlay').style.display = 'block';
-            }
-            
-            hideArmoedeDecisionScreen() {
-                document.getElementById('armoedeDecisionOverlay').style.display = 'none';
-            }
         }
 
         let game = new ToepenGame();
@@ -1898,18 +1818,6 @@
                     const folderName = gameState.players[action.playerIndex]?.name || 'Unknown';
                     game.updateGameStatus(`${folderName} folds to the toep.`);
                     break;
-                case 'armoede':
-                    const armoedeNames = action.armoedePlayers?.map(index => gameState.players[index]?.name || 'Unknown').join(', ') || 'Someone';
-                    game.updateGameStatus(`${armoedeNames} has Armoede (9 points)! Stakes doubled to 2 points.`);
-                    break;
-                case 'acceptArmoede':
-                    const armoedeAccepterName = gameState.players[action.playerIndex]?.name || 'Unknown';
-                    game.updateGameStatus(`${armoedeAccepterName} accepts Armoede.`);
-                    break;
-                case 'foldToArmoede':
-                    const armoedeFolderName = gameState.players[action.playerIndex]?.name || 'Unknown';
-                    game.updateGameStatus(`${armoedeFolderName} folds to Armoede.`);
-                    break;
                 case 'submitLaundry':
                     const laundryPlayer = gameState.players[action.playerIndex]?.name || 'Unknown';
                     const laundryType = action.laundryType === 'witte' ? 'Witte was' : 'Vuile was';
@@ -1974,12 +1882,6 @@
                         game.updateGameStatus(`${foldedNames} fold(s) to blind toep! Game begins with ${gameState.stakes} stakes.`);
                     } else {
                         game.updateGameStatus(`Blind toep accepted by all players! Game begins with ${gameState.stakes} stakes.`);
-                    }
-                    break;
-                case 'playingForDeathToepAttempt':
-                    // Only show to the player who tried to toep (playerIndex === 0 in client perspective)
-                    if (action.playerIndex === 0 && action.message) {
-                        game.showToast(action.message);
                     }
                     break;
             }
@@ -2068,17 +1970,6 @@
                 game.blindToepResponses = null;
             }
             
-            // Handle Armoede responses (if exists)
-            if (serverState.armoedeResponses) {
-                game.armoedeResponses = [];
-                for (let i = 0; i < serverState.players.length; i++) {
-                    const serverIndex = (myServerIndex + i) % serverState.players.length;
-                    game.armoedeResponses[i] = serverState.armoedeResponses[serverIndex];
-                }
-            } else {
-                game.armoedeResponses = null;
-            }
-            
             // Handle pending laundry
             if (serverState.pendingLaundry) {
                 game.pendingLaundry = {
@@ -2102,21 +1993,10 @@
                 // Convert server blindToeper index to client perspective
                 const clientBlindToeper = (serverState.lastToeper - myServerIndex + serverState.players.length) % serverState.players.length;
                 game.showBlindToepDecisionScreen(clientBlindToeper);
-            } else if (serverState.gamePhase === 'armoede' && 
-                       serverState.armoedeResponses && 
-                       serverState.armoedeResponses[myServerIndex] === null &&
-                       serverState.playersInRound.includes(myServerIndex)) {
-                // Show Armoede decision screen
-                game.armoedePlayers = serverState.armoedePlayers;
-                game.armoedePenalty = serverState.armoedePenalty;
-                game.showArmoedeDecisionScreen();
             } else {
-                // Hide decision overlays if they're showing and no longer needed
+                // Hide toep decision overlay if it's showing and no longer needed
                 if (document.getElementById('toepDecisionOverlay').style.display !== 'none') {
                     game.hideToepDecisionScreen();
-                }
-                if (document.getElementById('armoedeDecisionOverlay').style.display !== 'none') {
-                    game.hideArmoedeDecisionScreen();
                 }
             }
             
@@ -2219,70 +2099,23 @@
             backToSetup();
         }
 
-        // Debug function for troubleshooting card playability issues
-        function debugGameState() {
-            if (game) {
-                console.log('=== GAME STATE DEBUG ===');
-                console.log('gamePhase:', game.gamePhase);
-                console.log('currentPlayer:', game.currentPlayer);
-                console.log('playersInRound:', game.playersInRound);
-                console.log('isProcessing:', game.isProcessing);
-                console.log('awaitingInspection:', game.awaitingInspection);
-                console.log('pendingLaundry:', game.pendingLaundry);
-                console.log('laundryPhaseComplete:', game.laundryPhaseComplete);
-                console.log('currentTrick:', game.currentTrick);
-                console.log('leadSuit:', game.leadSuit);
-                console.log('Player 0 hand:', game.players[0]?.hand);
-                showToast('Debug info logged to console', 'info');
-            }
-        }
-
-        // Toast notification system
-        function showToast(message, type = 'success') {
-            // Remove any existing toast
-            const existingToast = document.querySelector('.toast');
-            if (existingToast) {
-                existingToast.remove();
-            }
-            
-            // Create new toast
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            toast.textContent = message;
-            
-            // Add to page
-            document.body.appendChild(toast);
-            
-            // Show with animation
-            setTimeout(() => toast.classList.add('show'), 100);
-            
-            // Hide and remove after 3 seconds
-            setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        }
-
         function copyLobbyCode() {
             const lobbyCode = document.getElementById('currentLobbyCode').textContent;
             if (lobbyCode) {
                 navigator.clipboard.writeText(lobbyCode).then(() => {
-                    showToast('Code copied!');
+                    // Provide visual feedback that the code was copied
+                    const button = event.target;
+                    const originalText = button.textContent;
+                    button.textContent = 'Copied!';
+                    button.style.background = '#4CAF50';
+                    
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.style.background = '';
+                    }, 1500);
                 }).catch(() => {
-                    // Fallback: try to select text and copy, or show code in toast
-                    try {
-                        // Create temporary input to select text
-                        const temp = document.createElement('input');
-                        temp.value = lobbyCode;
-                        document.body.appendChild(temp);
-                        temp.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(temp);
-                        showToast('Code copied!');
-                    } catch (err) {
-                        // Last resort: show the code in a toast
-                        showToast(`Lobby code: ${lobbyCode}`, 'info');
-                    }
+                    // Fallback for older browsers
+                    alert('Lobby code: ' + lobbyCode);
                 });
             }
         }
@@ -2530,26 +2363,6 @@
                 }
                 
                 game.updateDisplay();
-            }
-        }
-        
-        function acceptArmoede() {
-            if (isMultiplayer) {
-                socket.emit('gameAction', { type: 'acceptArmoede' });
-                game.hideArmoedeDecisionScreen();
-            } else {
-                // Single player Armoede handling (if needed in future)
-                game.hideArmoedeDecisionScreen();
-            }
-        }
-        
-        function foldToArmoede() {
-            if (isMultiplayer) {
-                socket.emit('gameAction', { type: 'foldToArmoede' });
-                game.hideArmoedeDecisionScreen();
-            } else {
-                // Single player Armoede handling (if needed in future)
-                game.hideArmoedeDecisionScreen();
             }
         }
 
