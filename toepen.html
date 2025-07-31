@@ -472,7 +472,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-1.6 🃏</h1>
+            <h1>🃏 TOEPEN V-1.7 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -1115,8 +1115,8 @@
                     return;
                 }
                 
-                // Continue with remaining AI players
-                this.currentPlayer = this.playersInRound[0];
+                // Continue with remaining players - advance to next player in turn order
+                this.nextPlayer();
                 setTimeout(() => {
                     if (this.currentPlayer !== 0) {
                         this.handleAIPlay();

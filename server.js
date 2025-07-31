@@ -567,6 +567,18 @@ function processGameAction(room, playerIndex, action) {
         gameState.playersInRound = gameState.playersInRound.filter(p => p !== playerIndex);
         // Add penalty points based on stakes when they entered
         gameState.players[playerIndex].points += gameState.playerStakesOnEntry[playerIndex];
+        
+        // Check if only one player remains
+        if (gameState.playersInRound.length === 1) {
+          // End the round - last player wins
+          endRound(gameState, room);
+          return true;
+        }
+        
+        // If the folding player was the current player, advance to next player
+        if (gameState.currentPlayer === playerIndex) {
+          gameState.currentPlayer = getNextPlayer(gameState);
+        }
       }
       return true;
       
