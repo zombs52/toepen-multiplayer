@@ -289,7 +289,7 @@ io.on('connection', (socket) => {
       currentPlayer: 0,
       round: 1,
       stakes: 1,
-      gamePhase: 'setup', // Will be changed to 'armoede' or 'laundry' after cards are dealt
+      gamePhase: 'laundry', // Will be changed based on game conditions
       deck: [],
       currentTrick: [],
       tricksPlayed: 0,
@@ -326,7 +326,7 @@ io.on('connection', (socket) => {
       startLaundryPhase(room.gameState, room);
     }
     
-    // Notify all players that game is starting
+    // Notify all players that game is starting  
     broadcastSecureGameState(room, { type: 'gameStarted' });
     
     console.log(`Game started in room ${roomCode}`);
