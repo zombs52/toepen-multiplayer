@@ -312,7 +312,8 @@ io.on('connection', (socket) => {
       pendingLaundry: null,
       leadSuit: null,
       lastRoundWinner: undefined,
-      lastTrickWinner: undefined
+      lastTrickWinner: undefined,
+      boertoepCandidate: null
     };
     
     // Create deck and deal cards
@@ -611,6 +612,16 @@ function processGameAction(room, playerIndex, action) {
           return false;
         }
         
+        // Check for potential Boertoep: toeping with only Jack on final trick
+        const currentPlayerHand = gameState.players[playerIndex].hand;
+        if (gameState.tricksPlayed === 3 && currentPlayerHand.length === 1 && 
+            currentPlayerHand[0].value === 'J') {
+          gameState.boertoepCandidate = {
+            playerIndex: playerIndex,
+            trickNumber: 4
+          };
+        }
+        
         gameState.stakes += 1;
         gameState.lastToeper = playerIndex;
         gameState.gamePhase = 'toepResponse';
@@ -886,12 +897,19 @@ function endRound(gameState, room) {
   
   console.log('Round winner (last trick winner):', winners.map(i => `${i}:${gameState.players[i].name}`));
   
+  // Check for Boertoep rule before awarding points
+  let boertoepWinner = checkBoertoep(gameState, winners[0]);
+  
   // Award penalty points to non-winners (based on their entry stakes)
   gameState.playersInRound.forEach(playerIndex => {
     if (!winners.includes(playerIndex)) {
       const penaltyPoints = gameState.playerStakesOnEntry[playerIndex];
       console.log(`Giving ${penaltyPoints} penalty points to ${playerIndex}:${gameState.players[playerIndex].name}`);
       gameState.players[playerIndex].points += penaltyPoints;
+    } else if (boertoepWinner) {
+      // Boertoep: winner gets -1 point instead of 0
+      gameState.players[playerIndex].points -= 1;
+      console.log(`🃏 BOERTOEP! ${gameState.players[playerIndex].name} wins with Jack on final trick and gets -1 point! 🃏`);
     } else {
       console.log(`${playerIndex}:${gameState.players[playerIndex].name} is winner, no penalty`);
     }
@@ -938,6 +956,7 @@ function endRound(gameState, room) {
   gameState.currentTrick = []; // Clear any cards left on the table
   gameState.leadSuit = null; // Clear lead suit
   gameState.lastTrickWinner = undefined; // Reset last trick winner for new round
+  gameState.boertoepCandidate = null; // Reset Boertoep tracking for new round
   gameState.gamePhase = 'roundEnd';
   
   // Check for eliminated players
@@ -1004,6 +1023,30 @@ function endRound(gameState, room) {
   }
 }
 
+function checkBoertoep(gameState, winnerIndex) {
+  // Boertoep conditions:
+  // 1. Player toeps on 4th/final trick
+  // 2. Player has only Jack left
+  // 3. At least one other player accepts the toep
+  // 4. Player wins that final trick with the Jack
+  
+  if (!gameState.boertoepCandidate || gameState.boertoepCandidate.playerIndex !== winnerIndex) {
+    return false;
+  }
+  
+  // Verify this was the final trick and player won with Jack
+  if (gameState.tricksPlayed === 4 && gameState.boertoepCandidate.trickNumber === 4) {
+    // Check if the winner played a Jack on this final trick
+    const finalTrick = gameState.currentTrick;
+    const winnerCard = finalTrick.find(c => c.player === winnerIndex);
+    
+    if (winnerCard && winnerCard.card.value === 'J') {
+      return true; // Boertoep achieved!
+    }
+  }
+  
+  return false;
+}
 
 function checkToepResponses(gameState, room) {
   // Auto-accept for players playing for death who haven't responded yet

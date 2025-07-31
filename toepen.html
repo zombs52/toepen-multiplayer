@@ -641,6 +641,7 @@
                 this.roundTrickWins = [];
                 this.consecutiveWins = []; // Track consecutive round wins for Vijfkruizenregel
                 this.lastTrickWinner = undefined; // Track winner of most recent trick (especially final trick)
+                this.boertoepCandidate = null; // Track potential Boertoep: {playerIndex, trickNumber}
                 this.isHost = false;
                 this.lobbyCode = '';
                 this.lobbyPlayers = [];
@@ -749,6 +750,7 @@
                 this.currentTrick = [];
                 this.tricksPlayed = 0;
                 this.lastTrickWinner = undefined; // Reset last trick winner for new round
+                this.boertoepCandidate = null; // Reset Boertoep tracking for new round
                 
                 // Only reset stakes if no blind toep was called
                 if (this.blindToepCaller === -1) {
@@ -1003,6 +1005,16 @@
                 if (this.isPlayingForDeath(0)) {
                     this.updateGameStatus("You can't toep when playing for death! You're already risking elimination.");
                     return;
+                }
+                
+                // Check for potential Boertoep: toeping with only Jack on final trick
+                const currentPlayerHand = this.players[this.currentPlayer].hand;
+                if (this.tricksPlayed === 3 && currentPlayerHand.length === 1 && 
+                    currentPlayerHand[0].value === 'J') {
+                    this.boertoepCandidate = {
+                        playerIndex: this.currentPlayer,
+                        trickNumber: 4
+                    };
                 }
                 
                 this.stakes += 1;
@@ -1409,11 +1421,18 @@
                 
                 let winnerNames = winners.map(w => this.players[w].name).join(', ');
                 
+                // Check for Boertoep rule before awarding points
+                let boertoepWinner = this.checkBoertoep(winners[0]);
+                
                 // All non-winners get penalty points equal to their entry stakes
                 this.playersInRound.forEach(playerIndex => {
                     if (!winners.includes(playerIndex)) {
                         const penaltyPoints = this.playerStakesOnEntry[playerIndex];
                         this.players[playerIndex].points += penaltyPoints;
+                    } else if (boertoepWinner) {
+                        // Boertoep: winner gets -1 point instead of 0
+                        this.players[playerIndex].points -= 1;
+                        this.updateGameStatus(`🃏 BOERTOEP! ${this.players[playerIndex].name} wins with Jack on final trick and gets -1 point! 🃏`);
                     }
                 });
                 
@@ -1442,7 +1461,7 @@
                     return;
                 }
                 
-                let roundSummary = `${winnerNames} won with ${maxTricks} tricks (0 points). Others get penalty points.`;
+                let roundSummary = `${winnerNames} won the final trick (0 points). Others get penalty points.`;
                 this.updateGameStatus(`Round ${this.round} complete! ${roundSummary}`);
                 
                 // Check for eliminated players
@@ -1471,6 +1490,31 @@
                     // Auto-continue to next round after showing results
                     setTimeout(() => this.nextRound(), 3000);
                 }, 2000);
+            }
+
+            checkBoertoep(winnerIndex) {
+                // Boertoep conditions:
+                // 1. Player toeps on 4th/final trick
+                // 2. Player has only Jack left
+                // 3. At least one other player accepts the toep
+                // 4. Player wins that final trick with the Jack
+                
+                if (!this.boertoepCandidate || this.boertoepCandidate.playerIndex !== winnerIndex) {
+                    return false;
+                }
+                
+                // Verify this was the final trick and player won with Jack
+                if (this.tricksPlayed === 4 && this.boertoepCandidate.trickNumber === 4) {
+                    // Check if the winner played a Jack on this final trick
+                    const finalTrick = this.currentTrick;
+                    const winnerCard = finalTrick.find(c => c.player === winnerIndex);
+                    
+                    if (winnerCard && winnerCard.card.value === 'J') {
+                        return true; // Boertoep achieved!
+                    }
+                }
+                
+                return false;
             }
 
             endGame() {
