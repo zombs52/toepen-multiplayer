@@ -1792,10 +1792,17 @@
                                         socket.emit('gameAction', { type: 'inspectLaundry' });
                                     };
                                 } else if (!isMultiplayer) {
-                                    // Singleplayer - human can inspect any claimer
-                                    playerEl.onclick = () => {
-                                        this.inspectLaundry(0);
-                                    };
+                                    // Singleplayer - human can inspect any claimer (except themselves)
+                                    if (this.pendingLaundry.playerIndex !== 0) {
+                                        playerEl.onclick = () => {
+                                            this.inspectLaundry(0);
+                                        };
+                                    } else {
+                                        // Human player is the claimer - can't inspect self
+                                        playerEl.style.cursor = 'default';
+                                        playerEl.title = `You claim ${this.pendingLaundry.type === 'witte' ? 'Witte was' : 'Vuile was'} - waiting for inspection`;
+                                        playerEl.onclick = null;
+                                    }
                                 } else {
                                     // This is the human player themselves claiming - can't inspect self
                                     playerEl.style.cursor = 'default';
