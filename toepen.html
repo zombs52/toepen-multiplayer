@@ -1473,26 +1473,10 @@
                 
                 // After 3 seconds, replace with new cards
                 setTimeout(() => {
+                    // Clear the inspection display and let normal updateDisplay handle the cards
                     cardsEl.innerHTML = '';
-                    if (isValid) {
-                        // Valid claim - new cards face down
-                        for (let i = 0; i < player.hand.length; i++) {
-                            const cardEl = document.createElement('div');
-                            cardEl.className = 'card card-back';
-                            cardEl.textContent = '🂠';
-                            cardsEl.appendChild(cardEl);
-                        }
-                    } else {
-                        // Invalid claim - new cards face up
-                        player.hand.forEach(card => {
-                            const cardEl = document.createElement('div');
-                            cardEl.className = `card ${card.color}`;
-                            cardEl.textContent = `${card.rank}${card.suit}`;
-                            cardEl.style.border = '2px solid #ff6b6b'; // Red border for penalty
-                            cardsEl.appendChild(cardEl);
-                        });
-                    }
-                }, 3000);
+                    this.updateDisplay();
+                }.bind(this), 3000);
             }
 
             nextRound() {
