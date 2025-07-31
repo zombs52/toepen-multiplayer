@@ -472,7 +472,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-2.1 🃏</h1>
+            <h1>🃏 TOEPEN V-2.2 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -1431,7 +1431,19 @@
             }
 
             callBlindToep() {
-                if (this.gamePhase !== 'roundEnd' || this.blindToepCaller >= 0) return;
+                // Debug: Log the current state for troubleshooting
+                console.log('callBlindToep() called - gamePhase:', this.gamePhase, 'blindToepCaller:', this.blindToepCaller);
+                
+                // Check if blind toep is allowed
+                if (this.gamePhase !== 'roundEnd') {
+                    this.updateGameStatus("Cannot blind toep - round must be finished first.");
+                    return;
+                }
+                
+                if (this.blindToepCaller >= 0) {
+                    this.updateGameStatus("Someone already called blind toep this round!");
+                    return;
+                }
                 
                 this.blindToepCaller = 0; // Human player calls blind toep
                 this.lastToeper = 0; // Mark human as blind toeper
@@ -1442,8 +1454,8 @@
                 // Update entry stakes for continuing players (3 points if they lose)
                 this.playerStakesOnEntry = new Array(this.players.length).fill(3);
                 
-                this.updateGameStatus(`You called Blind Toep! Stakes are now 3. Others must decide to fold (1 pt) or continue.`);
-                this.updateDisplay(); // Hide the blind toep button
+                this.updateGameStatus(`✅ You will blind toep next round! Stakes will start at 3 points.`);
+                this.updateDisplay(); // Update display to hide the button and show confirmation
                 
                 // Immediately trigger blind toep response handling
                 setTimeout(() => this.handleBlindToepResponse(), 1000);
@@ -2418,6 +2430,9 @@
         }
 
         function callBlindToep() {
+            console.log('Global callBlindToep() called - isMultiplayer:', isMultiplayer);
+            console.log('Button clicked! Game phase:', game.gamePhase, 'blindToepCaller:', game.blindToepCaller);
+            
             if (isMultiplayer) {
                 socket.emit('gameAction', { type: 'blindToep' });
             } else {
