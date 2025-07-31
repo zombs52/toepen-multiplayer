@@ -297,6 +297,7 @@ io.on('connection', (socket) => {
       roundTrickWins: new Array(room.players.length).fill(0),
       playerStakesOnEntry: new Array(room.players.length).fill(1),
       lastToeper: -1,
+      blindToepCaller: -1,
       awaitingInspection: false,
       pendingLaundry: null,
       leadSuit: null,
@@ -882,6 +883,7 @@ function endRound(gameState, room) {
   gameState.round++;
   gameState.stakes = 1;
   gameState.lastToeper = -1;
+  gameState.blindToepCaller = -1;
   gameState.roundTrickWins = new Array(gameState.players.length).fill(0);
   gameState.playerStakesOnEntry = new Array(gameState.players.length).fill(1);
   gameState.tricksPlayed = 0;
@@ -1021,6 +1023,13 @@ function handleAIToepResponses(gameState, room) {
 }
 
 function processServerBlindToepResponse(gameState, room) {
+  // Set stakes to 3 for blind toep
+  gameState.stakes = 3;
+  // All players start at stakes 3 for penalty calculation
+  gameState.playerStakesOnEntry = new Array(gameState.players.length).fill(3);
+  // Mark blind toeper as last toeper (can't toep again until someone else toeps)
+  gameState.lastToeper = gameState.blindToepCaller;
+  
   // Get all players except the blind toeper
   let playersToRespond = gameState.playersInRound.filter(p => p !== gameState.lastToeper);
   
@@ -1030,6 +1039,9 @@ function processServerBlindToepResponse(gameState, room) {
   
   // Auto-accept for the blind toeper
   gameState.blindToepResponses[gameState.lastToeper] = 'accept';
+  
+  // Reset blind toep caller after using
+  gameState.blindToepCaller = -1;
   
   // Mark all players not in round as already folded
   for (let i = 0; i < gameState.players.length; i++) {
