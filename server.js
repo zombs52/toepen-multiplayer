@@ -397,8 +397,12 @@ function getFilteredGameStateForPlayer(gameState, targetPlayerIndex) {
   // Filter each player's hand - only show cards to the owning player
   filteredState.players.forEach((player, index) => {
     if (index !== targetPlayerIndex) {
-      // Hide other players' cards - only show hand size
-      player.hand = new Array(player.hand.length).fill(null);
+      // Hide other players' cards - replace with placeholder cards that maintain structure
+      player.hand = player.hand.map(() => ({ 
+        suit: 'hidden', 
+        rank: '?', 
+        value: 0 
+      }));
     }
     // Own cards remain visible
   });
