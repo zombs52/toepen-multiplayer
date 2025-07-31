@@ -21,7 +21,7 @@ This is a web-based implementation of Toepen, a classic Dutch card game. The pro
 - **Live Site**: https://toepen-multiplayer-production.up.railway.app/
 - **Hosting**: Railway (connected to GitHub for auto-deployment)
 - **Repository**: Connected to GitHub - changes pushed to main branch auto-deploy
-- **Current Version**: V-2.0 (increment version number for major updates)
+- **Current Version**: V-2.4 (increment version number for major updates)
 
 ## Architecture
 
@@ -195,7 +195,7 @@ Special "Laundry" mechanics for specific hand combinations:
 **⚠️ SINGLE SOURCE OF TRUTH: `toepen.html` ONLY ⚠️**
 
 - **ONLY FILE**: `toepen.html` is the ONLY game file - never create or use other HTML files
-- **CURRENT VERSION**: V-2.0 (includes all features: Armoede, blind toep fixes, toast notifications)
+- **CURRENT VERSION**: V-2.4 (includes all features: Armoede, blind toep fixes, toast notifications)
 - **VERSION INCREMENTS**: Always increment version number (V-X.X) in `toepen.html` for major updates
 - **NO BACKUPS**: Do not create backup files - use git history for version control
 - **DEPLOYMENT**: Push to main branch triggers automatic Railway deployment
@@ -208,7 +208,37 @@ Special "Laundry" mechanics for specific hand combinations:
 3. Commit and push to deploy to Railway
 4. Test live site at https://toepen-multiplayer-production.up.railway.app/
 
+## Recent Major Work Completed (V-2.0 to V-2.4)
+
+### ✅ Blind Toep Functionality - FULLY IMPLEMENTED
+**Status**: Complete and working in both single-player and multiplayer modes
+
+**What was Fixed (V-2.0 to V-2.4)**:
+- **V-2.0**: Restored correct base version with all features (Armoede, toast notifications, etc.)
+- **V-2.1**: Fixed broken blind toep button - implemented complete decision flow
+- **V-2.2-2.3**: Fixed multiplayer server-side blind toep processing (was only working in single-player)
+- **V-2.4**: Improved timing - decisions now happen at round start instead of immediately
+
+**Current Blind Toep Flow**:
+1. At round end, "Blind Toep Next Round!" button appears
+2. Click button → notification: "Player called Blind Toep! Next round starts at 3 stakes"
+3. Normal round end delay (players see results, process the blind toep call)
+4. New round starts → decision screens appear for other players
+5. Players choose: fold (1 point penalty) or continue (3 points if lose)
+6. After decisions → laundry phase → game continues with 3-stake starting point
+
+**Key Implementation Details**:
+- Only one player can blind toep per round (enforced)
+- Fold penalty: 1 point (original entry stakes)
+- Continue penalty: 3 points if you don't win most tricks
+- Server handles multiplayer synchronization properly
+- Both single-player and multiplayer modes work identically
+
+**Files Modified**:
+- `toepen.html`: Client-side blind toep logic, UI, decision handling
+- `server.js`: Server-side blind toep processing, multiplayer synchronization
+
 ### Current Focus Areas
-- **Multiplayer Parity**: Ensuring multiplayer works as smoothly as singleplayer
-- **Synchronization**: Real-time game state sync between clients
-- **User Experience**: Seamless gameplay flow and feedback
+- **Polish and Refinement**: Game is feature-complete, focus on user experience improvements
+- **Bug Fixes**: Address any edge cases or minor issues found during play
+- **Performance**: Ensure smooth gameplay across all scenarios
