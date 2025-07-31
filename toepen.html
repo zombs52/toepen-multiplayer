@@ -1407,14 +1407,11 @@
                 });
                 
                 // Update consecutive wins tracking (Vijfkruizenregel)
-                // Only count as consecutive win if player actually won tricks (not just won by others folding)
                 this.players.forEach((player, index) => {
-                    if (winners.includes(index) && this.roundTrickWins[index] > 0) {
-                        // Player actually won tricks - increment consecutive wins
+                    if (winners.includes(index)) {
                         this.consecutiveWins[index]++;
                     } else {
-                        // Player either didn't win or won by default (0 tricks) - reset streak
-                        this.consecutiveWins[index] = 0;
+                        this.consecutiveWins[index] = 0; // Reset streak for non-winners
                     }
                 });
                 
