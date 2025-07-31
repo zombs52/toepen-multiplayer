@@ -327,7 +327,9 @@ io.on('connection', (socket) => {
     }
     
     // Notify all players that game is starting  
-    broadcastSecureGameState(room, { type: 'gameStarted' });
+    io.to(roomCode).emit('gameStarted', {
+      gameState: room.gameState
+    });
     
     console.log(`Game started in room ${roomCode}`);
   });
