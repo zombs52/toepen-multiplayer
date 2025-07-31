@@ -791,10 +791,27 @@ function processGameAction(room, playerIndex, action) {
       
     case 'blindToep':
       // Only allow during roundEnd phase
-      if (gameState.gamePhase === 'roundEnd' && !gameState.blindToepCaller) {
+      if (gameState.gamePhase === 'roundEnd' && (gameState.blindToepCaller === undefined || gameState.blindToepCaller === -1)) {
         gameState.blindToepCaller = playerIndex;
-        // Blind toep will be processed when the next round starts
-        return true;
+        gameState.lastToeper = playerIndex;
+        gameState.stakes = 3;
+        
+        // Store original entry stakes for fold penalties (1 point each)
+        gameState.originalEntryStakes = [...gameState.playerStakesOnEntry];
+        // Update entry stakes for continuing players (3 points if they lose)
+        gameState.playerStakesOnEntry = new Array(gameState.players.length).fill(3);
+        
+        // Immediately trigger blind toep response phase
+        processServerBlindToepResponse(gameState, room);
+        
+        // Broadcast the blind toep call
+        broadcastSecureGameState(room, { 
+          type: 'blindToepCalled', 
+          playerIndex: playerIndex,
+          message: `${gameState.players[playerIndex].name} called Blind Toep! Stakes are now 3.`
+        });
+        
+        return false; // Already broadcasted
       }
       return false;
       

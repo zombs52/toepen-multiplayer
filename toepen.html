@@ -472,7 +472,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-2.2-DEBUG 🃏</h1>
+            <h1>🃏 TOEPEN V-2.3 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -2002,6 +2002,10 @@
                 case 'toepResponsesComplete':
                     game.updateGameStatus(`All players responded to toep. Continuing game.`);
                     break;
+                case 'blindToepCalled':
+                    const callerName = gameState.players[action.playerIndex]?.name || 'Unknown';
+                    game.updateGameStatus(`✅ ${callerName} called Blind Toep! Stakes are now 3. Others must decide.`);
+                    break;
                 case 'blindToepResponse':
                     const blindToeper = gameState.players[action.blindToeper]?.name || 'Unknown';
                     game.updateGameStatus(`${blindToeper} called blind toep! Choose to continue for 3 points or fold.`);
@@ -2438,7 +2442,6 @@
         }
 
         function callBlindToep() {
-            alert('Blind Toep button was clicked!'); // Simple test to see if function is called
             console.log('Global callBlindToep() called - isMultiplayer:', isMultiplayer);
             console.log('Button clicked! Game phase:', game.gamePhase, 'blindToepCaller:', game.blindToepCaller);
             
