@@ -505,6 +505,9 @@ function processGameAction(room, playerIndex, action) {
         gameState.toepResponses = new Array(gameState.players.length).fill(null);
         gameState.toepResponses[playerIndex] = 'accept'; // Toeper automatically accepts
         
+        // IMPORTANT: Immediately broadcast the toep to all players so they can respond
+        broadcastSecureGameState(room, { type: 'toep', playerIndex: playerIndex });
+        
         // In multiplayer, we don't auto-handle responses - let real players respond
         // Just set a timeout to auto-accept any remaining null responses after 30 seconds
         setTimeout(() => {
@@ -515,7 +518,7 @@ function processGameAction(room, playerIndex, action) {
           }
         }, 30000);
       }
-      return true;
+      return false; // Already broadcasted
       
     case 'acceptToep':
       if (gameState.gamePhase === 'toepResponse' && gameState.toepResponses && gameState.toepResponses[playerIndex] === null) {
