@@ -640,6 +640,7 @@
                 this.leadSuit = null;
                 this.roundTrickWins = [];
                 this.consecutiveWins = []; // Track consecutive round wins for Vijfkruizenregel
+                this.lastTrickWinner = undefined; // Track winner of most recent trick (especially final trick)
                 this.isHost = false;
                 this.lobbyCode = '';
                 this.lobbyPlayers = [];
@@ -747,6 +748,7 @@
                 });
                 this.currentTrick = [];
                 this.tricksPlayed = 0;
+                this.lastTrickWinner = undefined; // Reset last trick winner for new round
                 
                 // Only reset stakes if no blind toep was called
                 if (this.blindToepCaller === -1) {
@@ -1365,6 +1367,9 @@
                 
                 this.roundTrickWins[winner.player]++;
                 
+                // Track the winner of each trick (especially important for the final trick)
+                this.lastTrickWinner = winner.player;
+                
                 this.updateGameStatus(`${this.players[winner.player].name} wins the trick!`);
                 
                 this.tricksPlayed++;
@@ -1372,6 +1377,7 @@
                 this.leadSuit = null;
                 
                 if (this.tricksPlayed === 4) {
+                    // Final trick - this winner wins the entire round
                     setTimeout(() => this.endRound(), 2000);
                 } else {
                     this.currentPlayer = winner.player;
@@ -1391,11 +1397,16 @@
             }
 
             endRound() {
-                // Find the player who won the most tricks (winner gets 0 points, others get penalty)
-                let maxTricks = Math.max(...this.playersInRound.map(p => this.roundTrickWins[p]));
-                let winners = this.playersInRound.filter(p => this.roundTrickWins[p] === maxTricks);
+                // In Toepen, the winner of the LAST trick wins the entire round
+                // Find who won the 4th/final trick
+                let winners = [];
+                if (this.lastTrickWinner !== undefined) {
+                    winners = [this.lastTrickWinner];
+                } else {
+                    // Fallback: if no last trick winner recorded, assume current player won
+                    winners = [this.currentPlayer];
+                }
                 
-                // If there's a tie for most tricks, all tied players get 0 points
                 let winnerNames = winners.map(w => this.players[w].name).join(', ');
                 
                 // All non-winners get penalty points equal to their entry stakes
@@ -2003,8 +2014,8 @@
                     game.updateGameStatus(`${playerName} played a card.`);
                     break;
                 case 'trickComplete':
-                    if (gameState.lastTrickWinner) {
-                        game.updateGameStatus(`${gameState.lastTrickWinner} wins the trick!`);
+                    if (gameState.lastTrickWinnerName) {
+                        game.updateGameStatus(`${gameState.lastTrickWinnerName} wins the trick!`);
                     }
                     break;
                 case 'toep':

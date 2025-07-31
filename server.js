@@ -311,7 +311,8 @@ io.on('connection', (socket) => {
       awaitingInspection: false,
       pendingLaundry: null,
       leadSuit: null,
-      lastRoundWinner: undefined
+      lastRoundWinner: undefined,
+      lastTrickWinner: undefined
     };
     
     // Create deck and deal cards
@@ -857,8 +858,11 @@ function evaluateTrick(gameState, room) {
   gameState.currentPlayer = winner.player;
   gameState.leadSuit = null;
   
+  // Track the winner of each trick (especially important for the final trick)
+  gameState.lastTrickWinner = winner.player; // Store player index, not name
+  
   // Set trick winner message for display
-  gameState.lastTrickWinner = winnerName;
+  gameState.lastTrickWinnerName = winnerName;
   
   // Check if round is complete
   if (gameState.tricksPlayed === 4) {
@@ -869,20 +873,18 @@ function evaluateTrick(gameState, room) {
 function endRound(gameState, room) {
   console.log('=== END ROUND DEBUG ===');
   console.log('Players in round:', gameState.playersInRound.map(i => `${i}:${gameState.players[i].name}`));
-  console.log('Trick wins:', gameState.roundTrickWins.map((wins, i) => `${i}:${wins}`));
-  console.log('Stakes on entry:', gameState.playerStakesOnEntry.map((stakes, i) => `${i}:${stakes}`));
+  console.log('Last trick winner:', gameState.lastTrickWinner);
   
-  // Find winner (most tricks)
-  let maxTricks = Math.max(...gameState.roundTrickWins);
+  // In Toepen, the winner of the LAST trick wins the entire round
   let winners = [];
-  gameState.roundTrickWins.forEach((tricks, index) => {
-    if (tricks === maxTricks && gameState.playersInRound.includes(index)) {
-      winners.push(index);
-    }
-  });
+  if (gameState.lastTrickWinner !== undefined && gameState.playersInRound.includes(gameState.lastTrickWinner)) {
+    winners = [gameState.lastTrickWinner];
+  } else {
+    // Fallback: if no last trick winner recorded, use current player
+    winners = [gameState.currentPlayer];
+  }
   
-  console.log('Max tricks:', maxTricks);
-  console.log('Winners:', winners.map(i => `${i}:${gameState.players[i].name}`));
+  console.log('Round winner (last trick winner):', winners.map(i => `${i}:${gameState.players[i].name}`));
   
   // Award penalty points to non-winners (based on their entry stakes)
   gameState.playersInRound.forEach(playerIndex => {
@@ -935,6 +937,7 @@ function endRound(gameState, room) {
   gameState.tricksPlayed = 0;
   gameState.currentTrick = []; // Clear any cards left on the table
   gameState.leadSuit = null; // Clear lead suit
+  gameState.lastTrickWinner = undefined; // Reset last trick winner for new round
   gameState.gamePhase = 'roundEnd';
   
   // Check for eliminated players
