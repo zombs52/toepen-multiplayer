@@ -614,12 +614,14 @@ function processGameAction(room, playerIndex, action) {
         
         // Check for potential Boertoep: toeping with only Jack on final trick
         const currentPlayerHand = gameState.players[playerIndex].hand;
+        console.log(`SERVER Toep debug - Player ${playerIndex}, Tricks played: ${gameState.tricksPlayed}, Hand size: ${currentPlayerHand.length}, Cards:`, currentPlayerHand);
         if (gameState.tricksPlayed === 3 && currentPlayerHand.length === 1 && 
             currentPlayerHand[0].value === 'J') {
           gameState.boertoepCandidate = {
             playerIndex: playerIndex,
             trickNumber: 4
           };
+          console.log('🃏 SERVER BOERTOEP CANDIDATE SET:', gameState.boertoepCandidate);
         }
         
         gameState.stakes += 1;
@@ -908,8 +910,10 @@ function endRound(gameState, room) {
       gameState.players[playerIndex].points += penaltyPoints;
     } else if (boertoepWinner) {
       // Boertoep: winner gets -1 point instead of 0
+      console.log(`SERVER Before Boertoep: ${gameState.players[playerIndex].name} has ${gameState.players[playerIndex].points} points`);
       gameState.players[playerIndex].points -= 1;
-      console.log(`🃏 BOERTOEP! ${gameState.players[playerIndex].name} wins with Jack on final trick and gets -1 point! 🃏`);
+      console.log(`SERVER After Boertoep: ${gameState.players[playerIndex].name} has ${gameState.players[playerIndex].points} points`);
+      console.log(`🃏 SERVER BOERTOEP! ${gameState.players[playerIndex].name} wins with Jack on final trick and gets -1 point! 🃏`);
     } else {
       console.log(`${playerIndex}:${gameState.players[playerIndex].name} is winner, no penalty`);
     }
@@ -1030,7 +1034,14 @@ function checkBoertoep(gameState, winnerIndex) {
   // 3. At least one other player accepts the toep
   // 4. Player wins that final trick with the Jack
   
+  console.log('=== SERVER BOERTOEP DEBUG ===');
+  console.log('Winner index:', winnerIndex);
+  console.log('Boertoep candidate:', gameState.boertoepCandidate);
+  console.log('Tricks played:', gameState.tricksPlayed);
+  console.log('Current trick:', gameState.currentTrick);
+  
   if (!gameState.boertoepCandidate || gameState.boertoepCandidate.playerIndex !== winnerIndex) {
+    console.log('No boertoep candidate or wrong player');
     return false;
   }
   
@@ -1040,11 +1051,15 @@ function checkBoertoep(gameState, winnerIndex) {
     const finalTrick = gameState.currentTrick;
     const winnerCard = finalTrick.find(c => c.player === winnerIndex);
     
+    console.log('Winner card:', winnerCard);
+    
     if (winnerCard && winnerCard.card.value === 'J') {
+      console.log('🃏 SERVER BOERTOEP DETECTED! 🃏');
       return true; // Boertoep achieved!
     }
   }
   
+  console.log('Boertoep conditions not met');
   return false;
 }
 
