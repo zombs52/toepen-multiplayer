@@ -312,8 +312,7 @@ io.on('connection', (socket) => {
       pendingLaundry: null,
       leadSuit: null,
       lastRoundWinner: undefined,
-      lastTrickWinner: undefined,
-      boertoepCandidate: null
+      lastTrickWinner: undefined
     };
     
     // Create deck and deal cards
@@ -612,17 +611,7 @@ function processGameAction(room, playerIndex, action) {
           return false;
         }
         
-        // Check for potential Boertoep: toeping with only Jack on final trick
-        const currentPlayerHand = gameState.players[playerIndex].hand;
-        console.log(`SERVER Toep debug - Player ${playerIndex}, Tricks played: ${gameState.tricksPlayed}, Hand size: ${currentPlayerHand.length}, Cards:`, currentPlayerHand);
-        if (gameState.tricksPlayed === 3 && currentPlayerHand.length === 1 && 
-            currentPlayerHand[0].value === 'J') {
-          gameState.boertoepCandidate = {
-            playerIndex: playerIndex,
-            trickNumber: 4
-          };
-          console.log('🃏 SERVER BOERTOEP CANDIDATE SET:', gameState.boertoepCandidate);
-        }
+        console.log(`SERVER Toep debug - Player ${playerIndex}, Tricks played: ${gameState.tricksPlayed}, Hand size: ${gameState.players[playerIndex].hand.length}`);
         
         gameState.stakes += 1;
         gameState.lastToeper = playerIndex;
@@ -960,7 +949,6 @@ function endRound(gameState, room) {
   gameState.currentTrick = []; // Clear any cards left on the table
   gameState.leadSuit = null; // Clear lead suit
   gameState.lastTrickWinner = undefined; // Reset last trick winner for new round
-  gameState.boertoepCandidate = null; // Reset Boertoep tracking for new round
   gameState.gamePhase = 'roundEnd';
   
   // Check for eliminated players
@@ -1029,29 +1017,25 @@ function endRound(gameState, room) {
 
 function checkBoertoep(gameState, winnerIndex) {
   // Boertoep conditions:
-  // 1. Player toeps on 4th/final trick
+  // 1. Player toeps on 4th/final trick  
   // 2. Player has only Jack left
   // 3. At least one other player accepts the toep
   // 4. Player wins that final trick with the Jack
   
   console.log('=== SERVER BOERTOEP DEBUG ===');
   console.log('Winner index:', winnerIndex);
-  console.log('Boertoep candidate:', gameState.boertoepCandidate);
   console.log('Tricks played:', gameState.tricksPlayed);
   console.log('Current trick:', gameState.currentTrick);
+  console.log('Last toeper:', gameState.lastToeper);
   
-  if (!gameState.boertoepCandidate || gameState.boertoepCandidate.playerIndex !== winnerIndex) {
-    console.log('No boertoep candidate or wrong player');
-    return false;
-  }
-  
-  // Verify this was the final trick and player won with Jack
-  if (gameState.tricksPlayed === 4 && gameState.boertoepCandidate.trickNumber === 4) {
+  // Check if this is the final trick and the winner is the last person who tooped
+  if (gameState.tricksPlayed === 4 && gameState.lastToeper === winnerIndex) {
     // Check if the winner played a Jack on this final trick
     const finalTrick = gameState.currentTrick;
     const winnerCard = finalTrick.find(c => c.player === winnerIndex);
     
     console.log('Winner card:', winnerCard);
+    console.log('Winner was last toeper:', gameState.lastToeper === winnerIndex);
     
     if (winnerCard && winnerCard.card.value === 'J') {
       console.log('🃏 SERVER BOERTOEP DETECTED! 🃏');
