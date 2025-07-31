@@ -412,9 +412,9 @@ function getFilteredGameStateForPlayer(gameState, targetPlayerIndex) {
 
 // Security: Broadcast game state with each player receiving only their own cards
 function broadcastSecureGameState(room, lastAction) {
-  room.players.forEach(player => {
+  room.players.forEach((player, index) => {
     if (player.id && io.sockets.sockets.get(player.id)) {
-      const filteredState = getFilteredGameStateForPlayer(room.gameState, player.index);
+      const filteredState = getFilteredGameStateForPlayer(room.gameState, index);
       io.to(player.id).emit('gameStateUpdate', {
         gameState: filteredState,
         lastAction: lastAction
