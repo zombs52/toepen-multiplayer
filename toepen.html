@@ -697,10 +697,16 @@
             }
 
             dealCards() {
-                this.players.forEach(player => {
-                    player.hand = [];
-                    for (let i = 0; i < 4; i++) {
-                        player.hand.push(this.deck.pop());
+                this.players.forEach((player, index) => {
+                    // Only deal cards to non-eliminated players
+                    if (player.points < 10) {
+                        player.hand = [];
+                        for (let i = 0; i < 4; i++) {
+                            player.hand.push(this.deck.pop());
+                        }
+                    } else {
+                        // Eliminated players get empty hands
+                        player.hand = [];
                     }
                 });
             }
@@ -730,10 +736,10 @@
             }
 
             startRound() {
-                // Remove eliminated players
-                this.players = this.players.filter(p => p.points < 10);
+                // Check for eliminated players but don't remove them (keep indices intact)
+                const activePlayers = this.players.filter(p => p.points < 10);
                 
-                if (this.players.length <= 1) {
+                if (activePlayers.length <= 1) {
                     this.endGame();
                     return;
                 }
@@ -760,7 +766,9 @@
                 }
                 // If blind toep was called, stakes and playerStakesOnEntry are already set correctly
                 
-                this.playersInRound = [...Array(this.players.length).keys()];
+                // Only include non-eliminated players in the round
+                this.playersInRound = this.players.map((player, index) => 
+                    player.points < 10 ? index : null).filter(index => index !== null);
                 this.roundTrickWins = new Array(this.players.length).fill(0);
                 
                 // Initialize consecutive wins tracking if not already done
@@ -768,7 +776,8 @@
                     this.consecutiveWins = new Array(this.players.length).fill(0);
                 }
                 this.gamePhase = 'laundry'; // Start with laundry phase
-                this.currentPlayer = 0;
+                // Set current player to first non-eliminated player
+                this.currentPlayer = this.playersInRound[0] || 0;
                 this.leadSuit = null;
                 this.laundryPhaseComplete = false;
                 this.firstCardPlayed = false;
