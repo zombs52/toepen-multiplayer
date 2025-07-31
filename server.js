@@ -305,6 +305,7 @@ io.on('connection', (socket) => {
       playersInRound: [...Array(room.players.length).keys()],
       roundTrickWins: new Array(room.players.length).fill(0),
       playerStakesOnEntry: new Array(room.players.length).fill(1),
+      consecutiveWins: new Array(room.players.length).fill(0),
       lastToeper: -1,
       blindToepCaller: -1,
       awaitingInspection: false,
@@ -894,6 +895,32 @@ function endRound(gameState, room) {
     }
   });
   
+  // Update consecutive wins tracking (Vijfkruizenregel)
+  gameState.players.forEach((player, index) => {
+    if (winners.includes(index)) {
+      gameState.consecutiveWins[index]++;
+    } else {
+      gameState.consecutiveWins[index] = 0; // Reset streak for non-winners
+    }
+  });
+  
+  // Check for Vijfkruizenregel (5 consecutive wins = instant victory)
+  const vijfkruizenWinners = winners.filter(w => gameState.consecutiveWins[w] >= 5);
+  if (vijfkruizenWinners.length > 0) {
+    let vijfkruizenNames = vijfkruizenWinners.map(w => gameState.players[w].name).join(', ');
+    gameState.gamePhase = 'gameEnd';
+    
+    // Broadcast the Vijfkruizenregel victory
+    broadcastSecureGameState(room, { 
+      type: 'vijfkruizenVictory', 
+      winners: vijfkruizenWinners,
+      message: `🏆 VIJFKRUIZENREGEL! ${vijfkruizenNames} wins with 5 consecutive round victories! 🏆`
+    });
+    
+    console.log(`🏆 VIJFKRUIZENREGEL! ${vijfkruizenNames} wins with 5 consecutive round victories! 🏆`);
+    return;
+  }
+  
   // Store round winner for next round's starting player
   gameState.lastRoundWinner = winners.length === 1 ? winners[0] : winners[0]; // If tie, pick first winner
   
@@ -904,6 +931,7 @@ function endRound(gameState, room) {
   gameState.blindToepCaller = -1;
   gameState.roundTrickWins = new Array(gameState.players.length).fill(0);
   gameState.playerStakesOnEntry = new Array(gameState.players.length).fill(1);
+  // Note: Don't reset consecutiveWins - these persist across rounds for Vijfkruizenregel
   gameState.tricksPlayed = 0;
   gameState.currentTrick = []; // Clear any cards left on the table
   gameState.leadSuit = null; // Clear lead suit

@@ -639,6 +639,7 @@
                 this.tricksTaken = [];
                 this.leadSuit = null;
                 this.roundTrickWins = [];
+                this.consecutiveWins = []; // Track consecutive round wins for Vijfkruizenregel
                 this.isHost = false;
                 this.lobbyCode = '';
                 this.lobbyPlayers = [];
@@ -757,6 +758,11 @@
                 
                 this.playersInRound = [...Array(this.players.length).keys()];
                 this.roundTrickWins = new Array(this.players.length).fill(0);
+                
+                // Initialize consecutive wins tracking if not already done
+                if (this.consecutiveWins.length !== this.players.length) {
+                    this.consecutiveWins = new Array(this.players.length).fill(0);
+                }
                 this.gamePhase = 'laundry'; // Start with laundry phase
                 this.currentPlayer = 0;
                 this.leadSuit = null;
@@ -1400,6 +1406,28 @@
                     }
                 });
                 
+                // Update consecutive wins tracking (Vijfkruizenregel)
+                this.players.forEach((player, index) => {
+                    if (winners.includes(index)) {
+                        this.consecutiveWins[index]++;
+                    } else {
+                        this.consecutiveWins[index] = 0; // Reset streak for non-winners
+                    }
+                });
+                
+                // Check for Vijfkruizenregel (5 consecutive wins = instant victory)
+                const vijfkruizenWinners = winners.filter(w => this.consecutiveWins[w] >= 5);
+                if (vijfkruizenWinners.length > 0) {
+                    let vijfkruizenNames = vijfkruizenWinners.map(w => this.players[w].name).join(', ');
+                    this.updateGameStatus(`🏆 VIJFKRUIZENREGEL! ${vijfkruizenNames} wins with 5 consecutive round victories! 🏆`);
+                    setTimeout(() => {
+                        this.updateGameStatus(`🎉 Game over! ${vijfkruizenNames} achieved the legendary 5 wins in a row! 🎉`);
+                        this.gamePhase = 'gameEnd';
+                        this.updateDisplay();
+                    }, 3000);
+                    return;
+                }
+                
                 let roundSummary = `${winnerNames} won with ${maxTricks} tricks (0 points). Others get penalty points.`;
                 this.updateGameStatus(`Round ${this.round} complete! ${roundSummary}`);
                 
@@ -1556,7 +1584,17 @@
                     const playerEl = document.getElementById(`player${index}`);
                     if (playerEl) {
                         playerEl.querySelector('.player-name').textContent = player.name;
-                        playerEl.querySelector('.player-points').textContent = `Points: ${player.points}`;
+                        
+                        // Show points and consecutive wins
+                        const consecutiveWins = this.consecutiveWins[index] || 0;
+                        let pointsText = `Points: ${player.points}`;
+                        if (consecutiveWins > 0) {
+                            pointsText += ` 🔥${consecutiveWins}`;
+                            if (consecutiveWins >= 3) {
+                                pointsText += ` (${5 - consecutiveWins} to Vijfkruizen!)`;
+                            }
+                        }
+                        playerEl.querySelector('.player-points').textContent = pointsText;
                         
                         const tricksEl = playerEl.querySelector('.player-tricks');
                         if (tricksEl) {
@@ -2071,6 +2109,12 @@
                     // Only show to the player who tried to toep (playerIndex === 0 in client perspective)
                     if (action.playerIndex === 0 && action.message) {
                         game.showToast(action.message);
+                    }
+                    break;
+                case 'vijfkruizenVictory':
+                    // Handle Vijfkruizenregel victory from server
+                    if (action.message) {
+                        game.updateGameStatus(action.message);
                     }
                     break;
             }

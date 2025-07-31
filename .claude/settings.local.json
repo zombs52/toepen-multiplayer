@@ -19,7 +19,8 @@
       "Bash(set PORT=3001)",
       "Bash(node:*)",
       "Bash(copy:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(start \"\" \"C:\\Users\\kdeuz\\Toepen-0.2\\toepen.html\")"
     ],
     "deny": []
   }
