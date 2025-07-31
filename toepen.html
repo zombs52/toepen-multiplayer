@@ -1009,12 +1009,14 @@
                 
                 // Check for potential Boertoep: toeping with only Jack on final trick
                 const currentPlayerHand = this.players[this.currentPlayer].hand;
+                console.log(`Toep debug - Tricks played: ${this.tricksPlayed}, Hand size: ${currentPlayerHand.length}, Cards:`, currentPlayerHand);
                 if (this.tricksPlayed === 3 && currentPlayerHand.length === 1 && 
                     currentPlayerHand[0].value === 'J') {
                     this.boertoepCandidate = {
                         playerIndex: this.currentPlayer,
                         trickNumber: 4
                     };
+                    console.log('🃏 BOERTOEP CANDIDATE SET:', this.boertoepCandidate);
                 }
                 
                 this.stakes += 1;
@@ -1431,7 +1433,9 @@
                         this.players[playerIndex].points += penaltyPoints;
                     } else if (boertoepWinner) {
                         // Boertoep: winner gets -1 point instead of 0
+                        console.log(`Before Boertoep: ${this.players[playerIndex].name} has ${this.players[playerIndex].points} points`);
                         this.players[playerIndex].points -= 1;
+                        console.log(`After Boertoep: ${this.players[playerIndex].name} has ${this.players[playerIndex].points} points`);
                         this.updateGameStatus(`🃏 BOERTOEP! ${this.players[playerIndex].name} wins with Jack on final trick and gets -1 point! 🃏`);
                     }
                 });
@@ -1499,7 +1503,14 @@
                 // 3. At least one other player accepts the toep
                 // 4. Player wins that final trick with the Jack
                 
+                console.log('=== BOERTOEP DEBUG ===');
+                console.log('Winner index:', winnerIndex);
+                console.log('Boertoep candidate:', this.boertoepCandidate);
+                console.log('Tricks played:', this.tricksPlayed);
+                console.log('Current trick:', this.currentTrick);
+                
                 if (!this.boertoepCandidate || this.boertoepCandidate.playerIndex !== winnerIndex) {
+                    console.log('No boertoep candidate or wrong player');
                     return false;
                 }
                 
@@ -1509,11 +1520,15 @@
                     const finalTrick = this.currentTrick;
                     const winnerCard = finalTrick.find(c => c.player === winnerIndex);
                     
+                    console.log('Winner card:', winnerCard);
+                    
                     if (winnerCard && winnerCard.card.value === 'J') {
+                        console.log('🃏 BOERTOEP DETECTED! 🃏');
                         return true; // Boertoep achieved!
                     }
                 }
                 
+                console.log('Boertoep conditions not met');
                 return false;
             }
 
