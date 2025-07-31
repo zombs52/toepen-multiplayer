@@ -289,7 +289,7 @@ io.on('connection', (socket) => {
       currentPlayer: 0,
       round: 1,
       stakes: 1,
-      gamePhase: 'laundry',
+      gamePhase: 'setup', // Will be changed to 'armoede' or 'laundry' after cards are dealt
       deck: [],
       currentTrick: [],
       tricksPlayed: 0,
@@ -307,7 +307,7 @@ io.on('connection', (socket) => {
     const dealResult = createDeckAndDeal(room.gameState);
     
     if (dealResult === 'armoede') {
-      // Someone has Armoede - enter Armoede phase
+      // Someone has Armoede - enter Armoede phase FIRST
       room.gameState.gamePhase = 'armoede';
       room.gameState.armoedePlayers = getArmoedePlayers(room.gameState);
       room.gameState.armoedePenalty = 2; // Armoede penalty is 2 points (like toep doubles stakes)
@@ -321,18 +321,13 @@ io.on('connection', (socket) => {
           handleArmoedeTimeout(room.gameState, room);
         }
       }, 30000);
+    } else {
+      // No Armoede - start laundry phase immediately
+      startLaundryPhase(room.gameState, room);
     }
     
     // Notify all players that game is starting
     broadcastSecureGameState(room, { type: 'gameStarted' });
-    
-    // Start laundry timer (10 seconds)
-    setTimeout(() => {
-      if (room.gameState && room.gameState.gamePhase === 'laundry' && !room.gameState.awaitingInspection) {
-        room.gameState.gamePhase = 'playing';
-        broadcastSecureGameState(room, { type: 'laundryPhaseEnd' });
-      }
-    }, 10000);
     
     console.log(`Game started in room ${roomCode}`);
   });
@@ -429,6 +424,19 @@ function getArmoedePlayers(gameState) {
     .map(({ index }) => index);
 }
 
+// Start the laundry phase with proper timer
+function startLaundryPhase(gameState, room) {
+  gameState.gamePhase = 'laundry';
+  
+  // Start laundry timer (10 seconds)
+  setTimeout(() => {
+    if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
+      gameState.gamePhase = 'playing';
+      broadcastSecureGameState(room, { type: 'laundryPhaseEnd' });
+    }
+  }, 10000);
+}
+
 // Handle Armoede timeout - auto-accept for remaining players
 function handleArmoedeTimeout(gameState, room) {
   gameState.playersInRound.forEach(playerIndex => {
@@ -441,7 +449,7 @@ function handleArmoedeTimeout(gameState, room) {
   processArmoedeResponses(gameState, room);
 }
 
-// Process all Armoede responses and continue to game
+// Process all Armoede responses and continue to next phase
 function processArmoedeResponses(gameState, room) {
   // Check if all players have responded
   const activePlayerResponses = gameState.playersInRound
@@ -469,9 +477,16 @@ function processArmoedeResponses(gameState, room) {
       return;
     }
     
-    // Move to playing phase
-    gameState.gamePhase = 'playing';
+    // Clear Armoede responses
     gameState.armoedeResponses = null;
+    
+    // Check for blind toep next, otherwise go to laundry
+    if (gameState.blindToepCaller !== undefined && gameState.blindToepCaller >= 0) {
+      processServerBlindToepResponse(gameState, room);
+    } else {
+      // Move to laundry phase
+      startLaundryPhase(gameState, room);
+    }
     
     // Broadcast the completed responses
     broadcastSecureGameState(room, { type: 'armoedeResponsesComplete', foldedPlayers });
@@ -902,7 +917,7 @@ function endRound(gameState, room) {
       const dealResult = createDeckAndDeal(gameState);
       
       if (dealResult === 'armoede') {
-        // Someone has Armoede - enter Armoede phase
+        // Someone has Armoede - enter Armoede phase FIRST
         gameState.gamePhase = 'armoede';
         gameState.armoedePlayers = getArmoedePlayers(gameState);
         gameState.armoedePenalty = 2; // Armoede penalty is 2 points
@@ -920,29 +935,14 @@ function endRound(gameState, room) {
         // Broadcast the Armoede phase
         broadcastSecureGameState(room, { type: 'armoede', armoedePlayers: gameState.armoedePlayers });
         return;
-      }
-      
-      // Process blind toep if someone called it
-      if (gameState.blindToepCaller !== undefined && gameState.blindToepCaller >= 0) {
-        gameState.stakes = 3;
-        gameState.playerStakesOnEntry = new Array(gameState.players.length).fill(3);
-        gameState.lastToeper = gameState.blindToepCaller;
-        gameState.pendingBlindToepResponse = true;
-        gameState.blindToepCaller = -1; // Reset after using
-      }
-      
-      // Start new laundry timer
-      setTimeout(() => {
-        if (gameState.gamePhase === 'laundry' && !gameState.awaitingInspection) {
-          // Check if there's a pending blind toep response
-          if (gameState.pendingBlindToepResponse) {
-            processServerBlindToepResponse(gameState, room);
-          } else {
-            gameState.gamePhase = 'playing';
-            broadcastSecureGameState(room, { type: 'laundryPhaseEnd' });
-          }
+      } else {
+        // No Armoede - check for blind toep or start laundry
+        if (gameState.blindToepCaller !== undefined && gameState.blindToepCaller >= 0) {
+          processServerBlindToepResponse(gameState, room);
+        } else {
+          startLaundryPhase(gameState, room);
         }
-      }, 10000);
+      }
       
       // Broadcast new round state
       broadcastSecureGameState(room, { type: 'newRound' });
@@ -1046,14 +1046,14 @@ function checkBlindToepResponses(gameState, room) {
   
   if (allResponded) {
     gameState.pendingBlindToepResponse = false;
-    gameState.gamePhase = 'playing';
     
     // Check if only one player left
     if (gameState.playersInRound.length === 1) {
       // End round immediately
       setTimeout(() => endRound(gameState, room), 2000);
     } else {
-      // Continue to playing phase
+      // Move to laundry phase after blind toep decisions
+      startLaundryPhase(gameState, room);
       broadcastSecureGameState(room, { type: 'blindToepResponsesComplete' });
     }
   }
