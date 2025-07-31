@@ -397,6 +397,15 @@ function getFilteredGameStateForPlayer(gameState, targetPlayerIndex) {
   // Filter each player's hand - only show cards to the owning player
   filteredState.players.forEach((player, index) => {
     if (index !== targetPlayerIndex) {
+      // Check if cards should be visible due to game mechanics
+      if (player.cardsVisible || 
+          gameState.gamePhase === 'laundry' || 
+          gameState.awaitingInspection ||
+          (gameState.pendingLaundry && gameState.pendingLaundry.playerIndex === index)) {
+        // Cards should be visible - don't filter them
+        return;
+      }
+      
       // Hide other players' cards - replace with placeholder cards that maintain structure
       player.hand = player.hand.map(() => ({ 
         suit: 'hidden', 
