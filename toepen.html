@@ -472,7 +472,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-2.0 🃏</h1>
+            <h1>🃏 TOEPEN V-2.1 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -745,7 +745,15 @@
                 });
                 this.currentTrick = [];
                 this.tricksPlayed = 0;
-                this.stakes = 1;
+                
+                // Only reset stakes if no blind toep was called
+                if (this.blindToepCaller === -1) {
+                    this.stakes = 1;
+                    // NEW: Initialize stakes tracking - all players start at stakes=1
+                    this.playerStakesOnEntry = new Array(this.players.length).fill(1);
+                }
+                // If blind toep was called, stakes and playerStakesOnEntry are already set correctly
+                
                 this.playersInRound = [...Array(this.players.length).keys()];
                 this.roundTrickWins = new Array(this.players.length).fill(0);
                 this.gamePhase = 'laundry'; // Start with laundry phase
@@ -755,24 +763,12 @@
                 this.firstCardPlayed = false;
                 this.isProcessing = false; // Reset processing flag for new round
                 
-                // NEW: Initialize stakes tracking - all players start at stakes=1
-                this.playerStakesOnEntry = new Array(this.players.length).fill(1);
-                
-                // Reset toep restriction for new round
-                this.lastToeper = -1;
-                
-                // If blind toep was called, adjust starting stakes
-                if (this.blindToepCaller >= 0) {
-                    this.stakes = 3;
-                    // All players start at stakes 3 for penalty calculation
-                    this.playerStakesOnEntry = new Array(this.players.length).fill(3);
-                    this.updateGameStatus(`${this.players[this.blindToepCaller].name} called Blind Toep! Stakes start at 3. Others must accept or fold.`);
-                    // Mark blind toeper as last toeper (can't toep again until someone else toeps)
-                    this.lastToeper = this.blindToepCaller;
-                    // Set flag to trigger fold/continue decisions after cards are shown
-                    this.pendingBlindToepResponse = true;
-                    this.blindToepCaller = -1; // Reset after using
+                // Reset toep restriction for new round (unless blind toep was called)
+                if (this.blindToepCaller === -1) {
+                    this.lastToeper = -1;
                 }
+                
+                // Blind toep is now handled immediately when called, not here
                 
                 this.updateDisplay();
                 this.updateGameStatus(`Round ${this.round} begins! Check for laundry before playing.`);
@@ -1080,9 +1076,10 @@
                 if (playersFolded.length > 0) {
                     let foldMessages = [];
                     playersFolded.forEach(p => {
-                        const penaltyPoints = this.playerStakesOnEntry[p]; // Should be 3
+                        // For blind toep, fold penalty is original entry stakes (1 point)
+                        const penaltyPoints = this.originalEntryStakes ? this.originalEntryStakes[p] : 1;
                         this.players[p].points += penaltyPoints;
-                        foldMessages.push(`${this.players[p].name} (gets ${penaltyPoints} pts)`);
+                        foldMessages.push(`${this.players[p].name} (gets ${penaltyPoints} pt)`);
                     });
                     
                     this.updateGameStatus(`${foldMessages.join(', ')} fold(s) to blind toep!`);
@@ -1097,13 +1094,18 @@
                 
                 let acceptedNames = this.playersInRound.filter(p => p !== this.lastToeper).map(p => this.players[p].name).join(', ');
                 if (acceptedNames) {
-                    this.updateGameStatus(`${acceptedNames} accept(s) the blind toep! Game begins with ${this.stakes} stakes!`);
+                    this.updateGameStatus(`${acceptedNames} accept(s) the blind toep! Starting new round with ${this.stakes} stakes!`);
                 } else {
-                    this.updateGameStatus(`Blind toep accepted. Game begins with ${this.stakes} stakes!`);
+                    this.updateGameStatus(`Blind toep accepted. Starting new round with ${this.stakes} stakes!`);
                 }
                 
                 this.pendingBlindToepResponse = false; // Reset flag
-                this.updateDisplay();
+                this.blindToepCaller = -1; // Reset blind toep caller
+                
+                // Start the new round immediately with laundry phase
+                setTimeout(() => {
+                    this.startRound();
+                }, 2000);
             }
 
             showBlindToepDecisionScreen() {
@@ -1432,8 +1434,19 @@
                 if (this.gamePhase !== 'roundEnd' || this.blindToepCaller >= 0) return;
                 
                 this.blindToepCaller = 0; // Human player calls blind toep
-                this.updateGameStatus(`You called Blind Toep! Next round starts at 3 stakes.`);
+                this.lastToeper = 0; // Mark human as blind toeper
+                this.stakes = 3; // Set stakes to 3 immediately
+                
+                // Store original entry stakes for fold penalties (1 point each)
+                this.originalEntryStakes = [...this.playerStakesOnEntry];
+                // Update entry stakes for continuing players (3 points if they lose)
+                this.playerStakesOnEntry = new Array(this.players.length).fill(3);
+                
+                this.updateGameStatus(`You called Blind Toep! Stakes are now 3. Others must decide to fold (1 pt) or continue.`);
                 this.updateDisplay(); // Hide the blind toep button
+                
+                // Immediately trigger blind toep response handling
+                setTimeout(() => this.handleBlindToepResponse(), 1000);
             }
 
             handleAIBlindToepDecisions() {
@@ -2424,6 +2437,31 @@
             } else {
                 game.hideToepDecisionScreen();
                 
+                // Check if this is a blind toep decision
+                if (game.isBlindToepDecision) {
+                    // Human accepts blind toep - trigger blind toep processing for remaining AI players
+                    game.updateGameStatus(`You accept the blind toep! Continuing with ${game.stakes} stakes.`);
+                    
+                    // Continue the blind toep response handling for AI players
+                    setTimeout(() => {
+                        // Get remaining AI players that need to decide
+                        let playersToRespond = game.playersInRound.filter(p => p !== game.lastToeper && p !== 0);
+                        let playersFolded = [];
+                        
+                        playersToRespond.forEach(playerIndex => {
+                            // AI decision: 30% chance to fold to blind toep
+                            const foldChance = 0.3;
+                            if (Math.random() < foldChance) {
+                                playersFolded.push(playerIndex);
+                            }
+                        });
+                        
+                        game.processBlindToepResponses(playersFolded);
+                    }, 1000);
+                    return;
+                }
+                
+                // Regular toep acceptance
                 // Update stakes tracking for human player who accepts
                 game.playerStakesOnEntry[0] = game.stakes;
                 
@@ -2485,14 +2523,43 @@
             } else {
                 game.hideToepDecisionScreen();
                 
-                // Player folds - gets penalty points based on entry stakes
-                const penaltyPoints = game.playerStakesOnEntry[0];
+                // Player folds - get penalty points
+                let penaltyPoints;
+                if (game.isBlindToepDecision && game.originalEntryStakes) {
+                    // For blind toep, fold penalty is original entry stakes (1 point)
+                    penaltyPoints = game.originalEntryStakes[0];
+                } else {
+                    // For regular toep, penalty is current entry stakes
+                    penaltyPoints = game.playerStakesOnEntry[0];
+                }
+                
                 game.players[0].points += penaltyPoints;
                 game.playersInRound = game.playersInRound.filter(p => p !== 0);
                 
-                game.updateGameStatus(`You fold and get ${penaltyPoints} penalty points!`);
+                game.updateGameStatus(`You fold and get ${penaltyPoints} penalty point${penaltyPoints === 1 ? '' : 's'}!`);
                 
-                // Continue with other AI responses
+                // Check if this is a blind toep decision
+                if (game.isBlindToepDecision) {
+                    // Human folded to blind toep - continue processing for remaining AI players
+                    setTimeout(() => {
+                        // Get remaining AI players that need to decide (excluding the blind toeper and human who just folded)
+                        let playersToRespond = game.playersInRound.filter(p => p !== game.lastToeper);
+                        let playersFolded = [];
+                        
+                        playersToRespond.forEach(playerIndex => {
+                            // AI decision: 30% chance to fold to blind toep
+                            const foldChance = 0.3;
+                            if (Math.random() < foldChance) {
+                                playersFolded.push(playerIndex);
+                            }
+                        });
+                        
+                        game.processBlindToepResponses(playersFolded);
+                    }, 1000);
+                    return;
+                }
+                
+                // Regular toep fold - continue with other AI responses
                 let playersToRespond = game.playersInRound.filter(p => p !== game.currentPlayer);
                 let playersFolded = [];
                 let playersAccepted = [];
