@@ -472,7 +472,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-2.6 🃏</h1>
+            <h1>🃏 TOEPEN V-2.7 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -2889,6 +2889,10 @@
         if (typeof game !== 'undefined') {
             enhanceGameStatusUpdate();
         }
+
+        // Ensure main menu functions are accessible
+        window.startGame = startGame;
+        window.showLobby = showLobby;
 
     </script>
 </body>
