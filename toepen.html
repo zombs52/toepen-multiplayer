@@ -472,7 +472,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-2.4 🃏</h1>
+            <h1>🃏 TOEPEN V-2.6 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -1572,6 +1572,13 @@
                                 const cardEl = document.createElement('div');
                                 cardEl.className = `card ${card.color}`;
                                 cardEl.textContent = `${card.rank}${card.suit}`;
+                                
+                                // Apply border styling based on player state
+                                if (player.cardsVisible) {
+                                    cardEl.style.border = '2px solid #ff6b6b'; // Red border for invalid laundry penalty
+                                } else if (player.hasValidLaundry) {
+                                    cardEl.style.border = '2px solid #4CAF50'; // Green border for valid laundry
+                                }
                                 
                                 // Only add click handler and make playable if it's the player's turn and not processing
                                 if (this.gamePhase === 'playing' && this.currentPlayer === 0 && 
