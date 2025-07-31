@@ -2,17 +2,26 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ CRITICAL VERSION MANAGEMENT RULES ⚠️
+
+**ONLY USE `toepen.html` - NO OTHER HTML FILES EXIST OR SHOULD BE CREATED**
+
+- **NEVER** create, look for, or use files like `toepen_original.html`, `toepen_backup.html`, etc.
+- **ALWAYS** work directly with `toepen.html` - this is the ONLY version that matters
+- **CURRENT VERSION**: V-2.0 (as of latest update with blind toep fixes)
+- **Version History**: All old versions have been removed to prevent confusion
+
 ## Project Overview
 
 This is a web-based implementation of Toepen, a classic Dutch card game. The project consists of:
-- **Frontend**: Monolithic single-page application in `toepen.html` (~1,327 lines) using vanilla HTML, CSS, and JavaScript
+- **Frontend**: Monolithic single-page application in `toepen.html` using vanilla HTML, CSS, and JavaScript
 - **Backend**: Node.js/Express server (`server.js`) with Socket.io for real-time multiplayer functionality
 
 ### Deployment Information
 - **Live Site**: https://toepen-multiplayer-production.up.railway.app/
 - **Hosting**: Railway (connected to GitHub for auto-deployment)
 - **Repository**: Connected to GitHub - changes pushed to main branch auto-deploy
-- **Current Version**: V-1.5 (increment version number for major updates)
+- **Current Version**: V-2.0 (increment version number for major updates)
 
 ## Architecture
 
@@ -181,10 +190,17 @@ Special "Laundry" mechanics for specific hand combinations:
 
 ## Development Workflow
 
-### Version Management
-- Always increment version number (V-0.X) in `toepen.html` for major updates
-- Commit with descriptive messages including version bump
-- Push to main branch triggers automatic Railway deployment
+### Version Management - CRITICAL RULES
+
+**⚠️ SINGLE SOURCE OF TRUTH: `toepen.html` ONLY ⚠️**
+
+- **ONLY FILE**: `toepen.html` is the ONLY game file - never create or use other HTML files
+- **CURRENT VERSION**: V-2.0 (includes all features: Armoede, blind toep fixes, toast notifications)
+- **VERSION INCREMENTS**: Always increment version number (V-X.X) in `toepen.html` for major updates
+- **NO BACKUPS**: Do not create backup files - use git history for version control
+- **DEPLOYMENT**: Push to main branch triggers automatic Railway deployment
+
+**If you ever see multiple HTML files, something went wrong - use only `toepen.html`**
 
 ### Testing Workflow
 1. Make changes locally

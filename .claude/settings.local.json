@@ -13,7 +13,13 @@
       "Bash(ls:*)",
       "Bash(grep:*)",
       "Bash(sed:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(git revert:*)",
+      "Bash(git checkout:*)",
+      "Bash(set PORT=3001)",
+      "Bash(node:*)",
+      "Bash(copy:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
