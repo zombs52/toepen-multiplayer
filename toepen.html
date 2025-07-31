@@ -2190,6 +2190,13 @@
                         game.updateGameStatus(action.message);
                     }
                     break;
+                case 'boertoep':
+                    // Handle Boertoep from server
+                    if (action.message) {
+                        game.updateGameStatus(action.message);
+                        console.log('🃏 BOERTOEP DETECTED IN MULTIPLAYER:', action.message);
+                    }
+                    break;
             }
         }
         

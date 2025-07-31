@@ -907,6 +907,13 @@ function endRound(gameState, room) {
       gameState.players[playerIndex].points -= 1;
       console.log(`SERVER After Boertoep: ${gameState.players[playerIndex].name} has ${gameState.players[playerIndex].points} points`);
       console.log(`🃏 SERVER BOERTOEP! ${gameState.players[playerIndex].name} wins with Jack on final trick and gets -1 point! 🃏`);
+      
+      // Send special message to all players about Boertoep
+      broadcastSecureGameState(room, { 
+        type: 'boertoep', 
+        playerIndex: playerIndex,
+        message: `🃏 BOERTOEP! ${gameState.players[playerIndex].name} wins with Jack on final trick and gets -1 point! 🃏`
+      });
     } else {
       console.log(`${playerIndex}:${gameState.players[playerIndex].name} is winner, no penalty`);
     }
