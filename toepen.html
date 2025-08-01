@@ -1019,13 +1019,19 @@
                 // Check for potential Boertoep: toeping with only Jack on final trick
                 const currentPlayerHand = this.players[this.currentPlayer].hand;
                 console.log(`Toep debug - Tricks played: ${this.tricksPlayed}, Hand size: ${currentPlayerHand.length}, Cards:`, currentPlayerHand);
-                if (this.tricksPlayed === 3 && currentPlayerHand.length === 1 && 
-                    currentPlayerHand[0].value === 'J') {
-                    this.boertoepCandidate = {
-                        playerIndex: this.currentPlayer,
-                        trickNumber: 4
-                    };
-                    console.log('🃏 BOERTOEP CANDIDATE SET:', this.boertoepCandidate);
+                
+                // More robust Boertoep detection - store the actual card info to avoid anti-cheat issues
+                if (this.tricksPlayed === 3 && currentPlayerHand && currentPlayerHand.length === 1) {
+                    const lastCard = currentPlayerHand[0];
+                    if (lastCard && lastCard.value === 'J') {
+                        this.boertoepCandidate = {
+                            playerIndex: this.currentPlayer,
+                            trickNumber: 4,
+                            cardValue: lastCard.value,  // Store the card value
+                            cardSuit: lastCard.suit     // Store the suit for extra verification
+                        };
+                        console.log('🃏 BOERTOEP CANDIDATE SET:', this.boertoepCandidate);
+                    }
                 }
                 
                 this.stakes += 1;
@@ -1289,6 +1295,24 @@
             }
 
             handleAIToep() {
+                // Check for potential Boertoep: AI toeping with only Jack on final trick
+                const currentPlayerHand = this.players[this.currentPlayer].hand;
+                console.log(`AI Toep debug - Player ${this.currentPlayer}, Tricks played: ${this.tricksPlayed}, Hand size: ${currentPlayerHand?.length}, Cards:`, currentPlayerHand);
+                
+                // More robust Boertoep detection for AI - store the actual card info
+                if (this.tricksPlayed === 3 && currentPlayerHand && currentPlayerHand.length === 1) {
+                    const lastCard = currentPlayerHand[0];
+                    if (lastCard && lastCard.value === 'J') {
+                        this.boertoepCandidate = {
+                            playerIndex: this.currentPlayer,
+                            trickNumber: 4,
+                            cardValue: lastCard.value,  // Store the card value
+                            cardSuit: lastCard.suit     // Store the suit for extra verification
+                        };
+                        console.log('🃏 AI BOERTOEP CANDIDATE SET:', this.boertoepCandidate);
+                    }
+                }
+                
                 this.stakes += 1;
                 this.lastToeper = this.currentPlayer; // Mark this AI player as the last one to toep
                 this.updateGameStatus(`${this.players[this.currentPlayer].name} toeps! Stakes now ${this.stakes}.`);
@@ -1525,15 +1549,22 @@
                 
                 // Verify this was the final trick and player won with Jack
                 if (this.tricksPlayed === 4 && this.boertoepCandidate.trickNumber === 4) {
-                    // Check if the winner played a Jack on this final trick
-                    const finalTrick = this.currentTrick;
-                    const winnerCard = finalTrick.find(c => c.player === winnerIndex);
-                    
-                    console.log('Winner card:', winnerCard);
-                    
-                    if (winnerCard && winnerCard.card.value === 'J') {
-                        console.log('🃏 BOERTOEP DETECTED! 🃏');
-                        return true; // Boertoep achieved!
+                    // Use stored card information instead of trying to access hand
+                    // This avoids issues with anti-cheat mechanisms that might nullify hand arrays
+                    if (this.boertoepCandidate.cardValue === 'J') {
+                        // Double-check by also verifying the played card in the trick
+                        const finalTrick = this.currentTrick;
+                        const winnerCard = finalTrick.find(c => c.player === winnerIndex);
+                        
+                        console.log('Winner card:', winnerCard);
+                        console.log('Stored Boertoep card:', this.boertoepCandidate.cardValue, this.boertoepCandidate.cardSuit);
+                        
+                        // Verify both stored info and actual played card match
+                        if (winnerCard && winnerCard.card.value === 'J' && 
+                            winnerCard.card.value === this.boertoepCandidate.cardValue) {
+                            console.log('🃏 BOERTOEP DETECTED! 🃏');
+                            return true; // Boertoep achieved!
+                        }
                     }
                 }
                 
