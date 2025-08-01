@@ -896,7 +896,16 @@ function endRound(gameState, room) {
   // Award penalty points to non-winners (based on their entry stakes)
   gameState.playersInRound.forEach(playerIndex => {
     if (!winners.includes(playerIndex)) {
-      const penaltyPoints = gameState.playerStakesOnEntry[playerIndex];
+      // For blind toep, non-winners who continued get current stakes (3)
+      // For regular rounds, use their entry stakes
+      let penaltyPoints;
+      if (gameState.stakes === 3 && gameState.playerStakesOnEntry.every(s => s === 3)) {
+        // This is a blind toep round: players still in round continued, so they get current stakes (3)
+        penaltyPoints = gameState.stakes;
+      } else {
+        // Regular round: use their entry stakes
+        penaltyPoints = gameState.playerStakesOnEntry[playerIndex];
+      }
       gameState.players[playerIndex].points += penaltyPoints;
     } else if (boertoepWinner) {
       // Boertoep: winner gets -1 point instead of 0

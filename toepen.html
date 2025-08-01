@@ -1469,7 +1469,16 @@
                 // All non-winners get penalty points equal to their entry stakes
                 this.playersInRound.forEach(playerIndex => {
                     if (!winners.includes(playerIndex)) {
-                        const penaltyPoints = this.playerStakesOnEntry[playerIndex];
+                        // For blind toep, non-winners who continued get 3 points (current stakes)
+                        // For regular rounds, use their entry stakes
+                        let penaltyPoints;
+                        if (this.blindToepCaller >= 0) {
+                            // Blind toep round: players still in round continued, so they get current stakes (3)
+                            penaltyPoints = this.stakes;
+                        } else {
+                            // Regular round: use their entry stakes
+                            penaltyPoints = this.playerStakesOnEntry[playerIndex];
+                        }
                         this.players[playerIndex].points += penaltyPoints;
                     } else if (boertoepWinner) {
                         // Boertoep: winner gets -1 point instead of 0
