@@ -1038,7 +1038,8 @@
                 this.lastToeper = 0; // Mark human player as the last one to toep
                 this.updateGameStatus(`You toep! Stakes raised to ${this.stakes}. Others must accept or fold.`);
                 
-                // DON'T update stakes tracking yet - only update for players who accept
+                // Update stakes tracking for toeper (they committed to higher stakes by toeping)
+                this.playerStakesOnEntry[0] = this.stakes;
                 
                 // Check if other players accept or fold
                 setTimeout(() => this.handleToepResponse(), 1000);
@@ -1317,7 +1318,8 @@
                 this.lastToeper = this.currentPlayer; // Mark this AI player as the last one to toep
                 this.updateGameStatus(`${this.players[this.currentPlayer].name} toeps! Stakes now ${this.stakes}.`);
                 
-                // DON'T update stakes tracking yet - only update for players who accept
+                // Update stakes tracking for AI toeper (they committed to higher stakes by toeping)
+                this.playerStakesOnEntry[this.currentPlayer] = this.stakes;
                 
                 // Other players (including human) might fold
                 setTimeout(() => this.handleToepResponseFromAI(), 1000);
