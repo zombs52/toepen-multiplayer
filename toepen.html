@@ -1445,13 +1445,20 @@
 
             endRound() {
                 // In Toepen, the winner of the LAST trick wins the entire round
-                // Find who won the 4th/final trick
+                // BUT only if they didn't fold! Folded players cannot win.
                 let winners = [];
-                if (this.lastTrickWinner !== undefined) {
+                
+                // If only one player remains (others folded), they automatically win
+                if (this.playersInRound.length === 1) {
+                    winners = [this.playersInRound[0]];
+                } else if (this.lastTrickWinner !== undefined && this.playersInRound.includes(this.lastTrickWinner)) {
+                    // Last trick winner wins, but only if they didn't fold
                     winners = [this.lastTrickWinner];
                 } else {
-                    // Fallback: if no last trick winner recorded, assume current player won
-                    winners = [this.currentPlayer];
+                    // Fallback: if last trick winner folded or not recorded, 
+                    // find the player still in round who won the most tricks
+                    let maxTricks = Math.max(...this.playersInRound.map(p => this.roundTrickWins[p]));
+                    winners = this.playersInRound.filter(p => this.roundTrickWins[p] === maxTricks);
                 }
                 
                 let winnerNames = winners.map(w => this.players[w].name).join(', ');

@@ -874,12 +874,20 @@ function evaluateTrick(gameState, room) {
 function endRound(gameState, room) {
   
   // In Toepen, the winner of the LAST trick wins the entire round
+  // BUT only if they didn't fold! Folded players cannot win.
   let winners = [];
-  if (gameState.lastTrickWinner !== undefined && gameState.playersInRound.includes(gameState.lastTrickWinner)) {
+  
+  // If only one player remains (others folded), they automatically win
+  if (gameState.playersInRound.length === 1) {
+    winners = [gameState.playersInRound[0]];
+  } else if (gameState.lastTrickWinner !== undefined && gameState.playersInRound.includes(gameState.lastTrickWinner)) {
+    // Last trick winner wins, but only if they didn't fold
     winners = [gameState.lastTrickWinner];
   } else {
-    // Fallback: if no last trick winner recorded, use current player
-    winners = [gameState.currentPlayer];
+    // Fallback: if last trick winner folded or not recorded,
+    // find the player still in round who won the most tricks
+    let maxTricks = Math.max(...gameState.playersInRound.map(p => gameState.roundTrickWins[p] || 0));
+    winners = gameState.playersInRound.filter(p => (gameState.roundTrickWins[p] || 0) === maxTricks);
   }
   
   // Check for Boertoep rule before awarding points
