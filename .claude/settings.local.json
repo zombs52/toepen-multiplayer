@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
       "Bash(start \"C:\\Users\\kdeuz\\Toepen-0.2\\toepen.html\")",
@@ -20,7 +21,10 @@
       "Bash(node:*)",
       "Bash(copy:*)",
       "Bash(rm:*)",
-      "Bash(start \"\" \"C:\\Users\\kdeuz\\Toepen-0.2\\toepen.html\")"
+      "Bash(start \"\" \"C:\\Users\\kdeuz\\Toepen-0.2\\toepen.html\")",
+      "Bash(start toepen.html)",
+      "Bash(mkdir:*)",
+      "Bash(vercel:*)"
     ],
     "deny": []
   }

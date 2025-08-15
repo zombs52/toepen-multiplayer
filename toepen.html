@@ -472,7 +472,7 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>🃏 TOEPEN V-2.7 🃏</h1>
+            <h1>🃏 TOEPEN 🃏</h1>
             <p>The Classic Dutch Card Game</p>
         </div>
 
@@ -2014,8 +2014,11 @@
         let game = new ToepenGame();
         let currentLobby = null;
         
-        // Initialize Socket.io connection
-        const socket = io();
+        // Initialize Socket.io connection for Vercel
+        const socket = io({
+            path: '/api/socket',
+            transports: ['websocket', 'polling']
+        });
         let isMultiplayer = false;
         let myPlayerIndex = -1;
         
